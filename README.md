@@ -16,7 +16,7 @@ Type `/the-office` in the Slack chat panel to flip the whole office into a Scran
 - 27 cast members (Michael, Jim, Pam, Dwight, Kevin, Angela, Stanley, Creed, David Wallace, Bob Vance — the whole office) dealt to agent roles
 - Role chatter swaps to in-character lines (`"Bears. Beets. Battlestar Galactica."`, `"selling paper"`, `"Schrute bucks awarded"`)
 - Michael occasionally lands his signature `"That's what she said 😏"` when replying to finished work
-- Character prop overlays — Michael rotates World's Best Boss mug / Dundie / Golden Ticket, Dwight gets the CPR dummy mask or a Schrute Buck, Jim keeps his jello stapler, Stanley gets a pretzel, Jan gets a Serenity by Jan candle
+- Character prop overlays — Michael rotates World's Best Boss mug / Dundie / Golden Ticket / Prison Mike bandana / "NO GOD PLEASE NO", Dwight gets the CPR dummy mask or a Schrute Buck, Jim keeps his jello stapler, Stanley gets a pretzel, Jan gets a Serenity by Jan candle, Oscar / Pam / Toby share the Finer Things Club
 - Angela gets a follower cat *and* a head-cat (randomized from 12 cat sprites)
 - Kevin's chili, pretzel day, and Finer Things Club references sprinkled through the break-room chatter
 
@@ -48,6 +48,10 @@ Each cast member gets a signature prop floating above their desk in place of the
   &nbsp;&nbsp;
   <img src="docs/images/prop-golden-ticket.png" alt="Golden Ticket (Michael)" height="70">
   &nbsp;&nbsp;
+  <img src="docs/images/prop-prison-mike.png" alt="Prison Mike bandana (Michael)" height="70">
+  &nbsp;&nbsp;
+  <img src="docs/images/prop-no-god.png" alt="NO GOD PLEASE NO (Michael)" height="70">
+  &nbsp;&nbsp;
   <img src="docs/images/prop-cpr-mask.png" alt="CPR Dummy Mask (Dwight)" height="70">
   &nbsp;&nbsp;
   <img src="docs/images/prop-schrute-buck.png" alt="Schrute Buck (Dwight)" height="70">
@@ -57,6 +61,10 @@ Each cast member gets a signature prop floating above their desk in place of the
   <img src="docs/images/prop-pretzel.png" alt="Pretzel Day (Stanley)" height="70">
   &nbsp;&nbsp;
   <img src="docs/images/prop-serenity-candle.png" alt="Serenity by Jan (Jan)" height="70">
+  &nbsp;&nbsp;
+  <img src="docs/images/prop-finer-things.png" alt="Finer Things Club (Oscar / Pam / Toby)" height="70">
+  &nbsp;&nbsp;
+  <img src="docs/images/prop-paper-box.png" alt="Dunder Mifflin Paper Box" height="70">
   &nbsp;&nbsp;
   <img src="docs/images/prop-dunder-logo.png" alt="Dunder Mifflin Logo" height="70">
   &nbsp;&nbsp;

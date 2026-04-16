@@ -331,6 +331,8 @@ const OFFICE_PROPS_BY_SLUG: Record<string, string[]> = {
     '/sprites/office/props/worlds-best-boss-mug.png',
     '/sprites/office/props/dundie-award.png',
     '/sprites/office/props/golden-ticket-box.png',
+    '/sprites/office/props/prison-mike.png',
+    '/sprites/office/props/no-god-please-no.png',
   ],
   'dwight-schrute':  [
     '/sprites/office/props/cpr-dummy-mask.png',
@@ -339,12 +341,17 @@ const OFFICE_PROPS_BY_SLUG: Record<string, string[]> = {
   'jim-halpert':     ['/sprites/office/props/jello-stapler.png'],
   'stanley-hudson':  ['/sprites/office/props/pretzel-day.png'],
   'jan-levinson':    ['/sprites/office/props/serenity-by-jan-candle.png'],
+  // Why: Finer Things Club members share the prop — Oscar, Pam, and Toby.
+  'oscar-martinez':  ['/sprites/office/props/finer-things-club.png'],
+  'pam-beesly':      ['/sprites/office/props/finer-things-club.png'],
+  'toby-flenderson': ['/sprites/office/props/finer-things-club.png'],
   // Angela: randomized second cat assigned per-role below — not a prop file.
 }
 
 // Why: generic fallback for remaining cast so every Office character has a prop.
 const OFFICE_GENERIC_PROPS = [
   '/sprites/office/props/dunder-mifflin-logo.png',
+  '/sprites/office/props/dunder-mifflin-paper-box.png',
   '/sprites/office/props/schrute-buck.png',
   '/sprites/office/props/golden-ticket-box.png',
 ]
