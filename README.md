@@ -4,7 +4,7 @@ A pixel art virtual office that visualizes your AI agents working in real-time. 
 
 ## Update — Dunder Mifflin mode
 
-Type `/the-office` in the chat to flip the whole office into a Scranton-branch tribute. The room, the cast, and the chatter all swap over — Michael Scott runs the place, Jim is your assistant, and Dwight guards the beet cellar.
+Type `/the-office` in the Slack chat panel to flip the whole office into a Scranton-branch tribute. The room, the cast, and the chatter all swap over — Michael Scott runs the place, Jim is your assistant, and Dwight guards the beet cellar.
 
 ### Pretzel day, every day
 <p>
