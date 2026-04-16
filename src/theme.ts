@@ -323,20 +323,30 @@ export function displayNameFromSlug(slug: string): string {
 }
 
 // Character-specific prop overlays — replace the energy-drink bubble above cast members.
-// Why: visual easter eggs tying props to iconic bits. Mix of golden-ticket / dunder logo / signature items.
-const OFFICE_PROP_BY_SLUG: Record<string, string> = {
-  'dwight-schrute':  '/sprites/office/props/cpr-dummy-mask.png',
-  'michael-scott':   '/sprites/office/props/golden-ticket-box.png',
-  'jim-halpert':     '/sprites/office/props/jello-stapler.png',
-  'stanley-hudson':  '/sprites/office/props/pretzel-day.png',
+// Why: visual easter eggs tying props to iconic bits. Each slug maps to a pool
+// of signature props — when there's more than one, a deterministic hash picks
+// per-role so the same agent keeps the same prop within a session.
+const OFFICE_PROPS_BY_SLUG: Record<string, string[]> = {
+  'michael-scott':   [
+    '/sprites/office/props/worlds-best-boss-mug.png',
+    '/sprites/office/props/dundie-award.png',
+    '/sprites/office/props/golden-ticket-box.png',
+  ],
+  'dwight-schrute':  [
+    '/sprites/office/props/cpr-dummy-mask.png',
+    '/sprites/office/props/schrute-buck.png',
+  ],
+  'jim-halpert':     ['/sprites/office/props/jello-stapler.png'],
+  'stanley-hudson':  ['/sprites/office/props/pretzel-day.png'],
+  'jan-levinson':    ['/sprites/office/props/serenity-by-jan-candle.png'],
   // Angela: randomized second cat assigned per-role below — not a prop file.
-  // Everyone else → alternate between golden ticket and dunder logo for variety.
 }
 
 // Why: generic fallback for remaining cast so every Office character has a prop.
 const OFFICE_GENERIC_PROPS = [
-  '/sprites/office/props/golden-ticket-box.png',
   '/sprites/office/props/dunder-mifflin-logo.png',
+  '/sprites/office/props/schrute-buck.png',
+  '/sprites/office/props/golden-ticket-box.png',
 ]
 
 const OFFICE_CATS_PATHS = OFFICE_CATS.map(c => `/sprites/office/cats/${c}.png`)
@@ -360,9 +370,12 @@ export function getOfficePropForRole(role: string): string | null {
     return OFFICE_CATS_PATHS[idx]
   }
 
-  const specific = OFFICE_PROP_BY_SLUG[slug]
-  if (specific) return specific
+  const specificPool = OFFICE_PROPS_BY_SLUG[slug]
+  if (specificPool && specificPool.length > 0) {
+    // Why: hash by role + slug so each cast member keeps a stable prop pick
+    return specificPool[hashString(role + slug) % specificPool.length]
+  }
 
-  // Generic fallback: golden ticket or dunder logo, chosen deterministically per slug
+  // Generic fallback: dunder logo / Schrute buck / golden ticket, deterministic per slug
   return OFFICE_GENERIC_PROPS[hashString(slug) % OFFICE_GENERIC_PROPS.length]
 }
