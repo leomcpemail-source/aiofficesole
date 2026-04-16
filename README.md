@@ -13,7 +13,7 @@ Type `/the-office` in the Slack chat panel to flip the whole office into a Scran
 </p>
 
 **What changes when you toggle it on**
-- 25 cast members (Michael, Jim, Pam, Dwight, Kevin, Angela, Stanley, Creed, Robert California — the whole office) dealt to agent roles
+- 27 cast members (Michael, Jim, Pam, Dwight, Kevin, Angela, Stanley, Creed, David Wallace, Bob Vance — the whole office) dealt to agent roles
 - Role chatter swaps to in-character lines (`"Bears. Beets. Battlestar Galactica."`, `"selling paper"`, `"Schrute bucks awarded"`)
 - Michael occasionally lands his signature `"That's what she said 😏"` when replying to finished work
 - Character prop overlays — Michael gets the Golden Ticket, Jim gets the jello stapler, Dwight gets the CPR dummy mask, Stanley gets a pretzel
@@ -34,6 +34,8 @@ Type `/the-office` in the Slack chat panel to flip the whole office into a Scran
   <img src="docs/images/ryan-howard.png" alt="Ryan Howard" height="140">
   <img src="docs/images/creed-bratton.png" alt="Creed Bratton" height="140">
   <img src="docs/images/robert-california.png" alt="Robert California" height="140">
+  <img src="docs/images/david-wallace.png" alt="David Wallace" height="140">
+  <img src="docs/images/bob-vance.png" alt="Bob Vance, Vance Refrigeration" height="140">
 </p>
 
 ### Easter-egg props

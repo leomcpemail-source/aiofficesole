@@ -4,16 +4,16 @@ import { useSyncExternalStore } from 'react'
 
 export type ThemeName = 'default' | 'office'
 
-// Why: 25 Office characters — shuffle-dealt to roles. Sprites live at
+// Why: 27 Office characters — shuffle-dealt to roles. Sprites live at
 // /sprites/office/characters/{slug}-{front|rear}-{left|right}.png
 const OFFICE_CHARACTERS = [
-  'andy-bernard', 'angela-martin', 'carol-stills', 'creed-bratton',
-  'darryl-philbin', 'dwight-schrute', 'erin-hannon', 'gabe-lewis',
-  'holly-flax', 'jan-levinson', 'jim-halpert', 'karen-filippelli',
-  'kelly-kapoor', 'kevin-malone', 'meredith-palmer', 'michael-scott',
-  'nellie-bertram', 'oscar-martinez', 'pam-beesly', 'phyllis-vance',
-  'robert-california', 'roy-anderson', 'ryan-howard', 'stanley-hudson',
-  'toby-flenderson',
+  'andy-bernard', 'angela-martin', 'bob-vance', 'carol-stills',
+  'creed-bratton', 'darryl-philbin', 'david-wallace', 'dwight-schrute',
+  'erin-hannon', 'gabe-lewis', 'holly-flax', 'jan-levinson',
+  'jim-halpert', 'karen-filippelli', 'kelly-kapoor', 'kevin-malone',
+  'meredith-palmer', 'michael-scott', 'nellie-bertram', 'oscar-martinez',
+  'pam-beesly', 'phyllis-vance', 'robert-california', 'roy-anderson',
+  'ryan-howard', 'stanley-hudson', 'toby-flenderson',
 ] as const
 
 const OFFICE_CATS = [
