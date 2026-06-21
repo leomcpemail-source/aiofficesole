@@ -40,9 +40,11 @@ interface SlackChatProps {
   typingUser?: string | null
   /** ID of the last message seen by the assistant — renders a tiny seen avatar */
   lastSeenId?: number | null
+  /** Channel name shown in the header (defaults to office-general) */
+  channelName?: string
 }
 
-const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggleMute, onVolumeChange, onSendMessage, onReaction, autoTypeText, dayPhase, typingUser, lastSeenId }) => {
+const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggleMute, onVolumeChange, onSendMessage, onReaction, autoTypeText, dayPhase, typingUser, lastSeenId, channelName = 'office-general' }) => {
   const theme = useTheme()
   void theme // Why: subscribe so avatars re-render when /the-office toggles
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -133,7 +135,7 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
     <div className="slack-panel">
       <div className="slack-header">
         <div className="slack-channel-icon">#</div>
-        <span className="slack-channel-name">office-general</span>
+        <span className="slack-channel-name">{channelName}</span>
         <div className="slack-header-right">
           <div className="slack-online-dot" />
           <span className="slack-online-count">{onlineCount}</span>

@@ -1,0 +1,283 @@
+/* aisole.css — AISole (AI โสเหล่) colour theme + Role-Play Studio styling.
+ *
+ * Palette is inspired by the AISole project's vertical-entertainment vibe:
+ * deep indigo/purple base with a magenta→orange "sunset" accent gradient.
+ * All values live here so they're easy to retune to the exact brand later. */
+
+:root {
+  --ais-bg-0: #150726;
+  --ais-bg-1: #20103f;
+  --ais-panel: rgba(34, 18, 64, 0.82);
+  --ais-panel-solid: #1c0f38;
+  --ais-border: rgba(177, 74, 237, 0.35);
+  --ais-text: #f3e9ff;
+  --ais-text-dim: #b9a8d6;
+  --ais-accent: #b14aed;
+  --ais-accent-2: #ff5f9e;
+  --ais-accent-3: #ff8a5c;
+  --ais-sunset: linear-gradient(135deg, #ff5f9e 0%, #ff8a5c 55%, #ffd166 100%);
+  --ais-purple-glow: 0 0 18px rgba(177, 74, 237, 0.45);
+}
+
+/* ===== App recolour — only when the aisole class is active ===== */
+
+.app-wrapper.aisole {
+  background: radial-gradient(140% 120% at 50% -10%, var(--ais-bg-1) 0%, var(--ais-bg-0) 70%);
+}
+
+.app-wrapper.aisole .title-bar {
+  background: linear-gradient(90deg, #2a1450, #3a1c63);
+  border-bottom: 1px solid var(--ais-border);
+}
+
+.app-wrapper.aisole .title-bar-text {
+  background: var(--ais-sunset);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.app-wrapper.aisole .title-bar-daynight,
+.app-wrapper.aisole .title-bar-phase {
+  color: var(--ais-text-dim);
+}
+
+.app-wrapper.aisole .slack-panel {
+  background: var(--ais-panel);
+  backdrop-filter: blur(8px);
+  border-left: 1px solid var(--ais-border);
+  color: var(--ais-text);
+}
+
+.app-wrapper.aisole .slack-header {
+  background: linear-gradient(90deg, #2a1450, #38205f);
+  border-bottom: 1px solid var(--ais-border);
+}
+
+.app-wrapper.aisole .slack-channel-icon,
+.app-wrapper.aisole .slack-channel-name {
+  color: var(--ais-text);
+}
+
+.app-wrapper.aisole .slack-body {
+  background: transparent;
+}
+
+.app-wrapper.aisole .slack-msg-text {
+  color: var(--ais-text);
+}
+
+.app-wrapper.aisole .slack-time {
+  color: var(--ais-text-dim);
+}
+
+.app-wrapper.aisole .slack-input-bar {
+  background: rgba(20, 10, 40, 0.9);
+  border-top: 1px solid var(--ais-border);
+}
+
+.app-wrapper.aisole .slack-input-field {
+  color: var(--ais-text);
+}
+
+.app-wrapper.aisole .slack-input-field::placeholder {
+  color: var(--ais-text-dim);
+}
+
+/* Studio launch / stop button in the title bar */
+.aisole-launch-btn {
+  margin-left: 10px;
+  border: none;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  cursor: pointer;
+  background: var(--ais-sunset);
+  box-shadow: var(--ais-purple-glow);
+}
+.aisole-launch-btn.stop {
+  background: linear-gradient(135deg, #7a2bb5, #b14aed);
+}
+.aisole-launch-btn:hover { filter: brightness(1.08); }
+
+/* ===== Role-Play Studio modal ===== */
+
+.rp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 4, 22, 0.72);
+  backdrop-filter: blur(4px);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans Thai', sans-serif;
+}
+
+.rp-modal {
+  position: relative;
+  width: min(620px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--ais-panel-solid);
+  border: 1px solid var(--ais-border);
+  border-radius: 18px;
+  padding: 22px 24px 24px;
+  color: var(--ais-text);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), var(--ais-purple-glow);
+}
+
+.rp-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ais-text);
+  font-size: 15px;
+  cursor: pointer;
+}
+.rp-close:hover { background: rgba(255, 95, 158, 0.3); }
+
+.rp-brand { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
+.rp-logo {
+  font-size: 22px;
+  font-weight: 800;
+  background: var(--ais-sunset);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.rp-tagline { font-size: 12px; color: var(--ais-text-dim); }
+
+.rp-steps { display: flex; gap: 8px; margin-bottom: 16px; }
+.rp-step-dot {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ais-text-dim);
+}
+.rp-step-dot.on { background: var(--ais-sunset); color: #1a0a2e; font-weight: 700; }
+
+.rp-body { display: flex; flex-direction: column; gap: 8px; }
+.rp-label { font-size: 12px; color: var(--ais-text-dim); margin-top: 6px; }
+
+.rp-input, .rp-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ais-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--ais-text);
+  font-size: 14px;
+  outline: none;
+}
+.rp-input:focus, .rp-textarea:focus { border-color: var(--ais-accent-2); }
+.rp-input::placeholder, .rp-textarea::placeholder { color: #8d7bab; }
+.rp-textarea { resize: vertical; }
+
+.rp-roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.rp-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: transform 0.08s, border-color 0.12s;
+}
+.rp-card:hover { transform: translateY(-2px); }
+.rp-card.selected { border-color: var(--ais-accent-2); box-shadow: 0 0 0 1px var(--ais-accent-2) inset; }
+.rp-card-img { height: 52px; width: auto; image-rendering: pixelated; }
+.rp-card-name { font-size: 10px; color: var(--ais-text); text-align: center; line-height: 1.15; }
+
+.rp-personas { display: flex; flex-direction: column; gap: 6px; }
+.rp-persona-row { display: flex; align-items: center; gap: 8px; }
+.rp-persona-chip {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1a0a2e;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.rp-persona-input { flex: 1; }
+
+.rp-scenes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.rp-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 6px;
+  border: 1px solid var(--ais-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ais-text);
+  cursor: pointer;
+}
+.rp-scene.selected { border-color: var(--ais-accent-2); background: rgba(255, 95, 158, 0.12); }
+.rp-scene-emoji { font-size: 22px; }
+.rp-scene-label { font-size: 11px; }
+
+.rp-summary {
+  margin-top: 6px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  font-size: 12px;
+}
+.rp-summary-cast { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rp-summary-chip {
+  font-size: 11px;
+  padding: 3px 8px;
+  border: 1px solid;
+  border-radius: 999px;
+  color: var(--ais-text);
+}
+
+.rp-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
+.rp-actions:only-child, .rp-actions:last-child { margin-top: 18px; }
+.rp-btn-primary {
+  margin-left: auto;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a0a2e;
+  cursor: pointer;
+  background: var(--ais-sunset);
+}
+.rp-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.rp-btn-ghost {
+  border: 1px solid var(--ais-border);
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 14px;
+  color: var(--ais-text);
+  background: transparent;
+  cursor: pointer;
+}
+.rp-btn-ghost:hover { background: rgba(255, 255, 255, 0.06); }

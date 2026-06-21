@@ -2,6 +2,28 @@
 
 A pixel art virtual office that visualizes your AI agents working in real-time. Watch Claude Code agents spawn, sit at desks, take coffee breaks, and chat in a Slack-inspired office chat panel — all rendered in an isometric pixel art office.
 
+## Update — AISole role-play mode 🗣️
+
+Adapted for the **AISole (AI โสเหล่)** concept: instead of only visualizing Claude Code
+agents, you can **cast the office characters and have them role-play a conversation you
+direct**. Open the studio from the **🎭 AISole** button in the title bar (or load
+`?aisole` / `?roleplay`), then:
+
+1. **หัวข้อ** — type the topic you want them to talk about (+ optional backstory / your name in the room).
+2. **ตัวละคร** — pick characters from this repo's cast and give each one a **role/persona** (free text — they'll stay in character).
+3. **ฉาก** — choose a scene (office day/night, lounge, café, sunset, studio).
+
+Hit **เริ่มวงสนทนา** and the cast walks into the room, sits, **wanders around**, and
+**talks in the chat panel** turn-by-turn (with typing indicators + speech bubbles).
+Type into the chat at any time to **interject as the audience** — the next speaker
+reacts to you. The interface recolours to the AISole sunset/neon palette while a session
+is live (`src/styles/aisole.css` — easy to retune).
+
+**Conversation engine** (`src/roleplay.ts`): runs fully offline with a local persona
+engine (phase-based topic adherence + `@mentions`, mirroring AISole's `director.js`). Set
+`VITE_BRAIN_URL` to relay turns to a real LLM brain (e.g. the AISole Supabase edge
+function) — it gracefully falls back to the local engine so the show never stalls.
+
 ## Update — Dunder Mifflin mode
 
 Type `/the-office` in the Slack chat panel to flip the whole office into a Scranton-branch tribute. The room, the cast, and the chatter all swap over — Michael Scott runs the place, Jim is your assistant, and Dwight guards the beet cellar.
