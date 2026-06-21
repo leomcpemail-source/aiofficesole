@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import './styles/office.css'
 import './styles/rooms.css'
+import './styles/aisole.css'
 import SlackChat, { ChatMessage } from './components/SlackChat'
+import RolePlayStudio from './components/RolePlayStudio'
 import Character from './components/Character'
 import FurnitureRenderer from './components/FurnitureRenderer'
 import { Agent, OfficeEvent, AGENT_CONFIGS } from './types'
@@ -32,6 +34,10 @@ import {
   OFFICE_SIM_TOOL_MESSAGES, OFFICE_SIM_BOSS_PROMPTS,
   assignCharacterToRole, releaseRole, nextUnusedOfficeCharacter, displayNameFromSlug,
 } from './theme'
+import {
+  useRPSession, startSession, stopSession, generateLine, pushHuman, consumeHuman,
+  SCENES, type RPSession, type RPCharacter,
+} from './roleplay'
 
 // ---------------------------------------------------------------------------
 // Placement helper — loaded via ?helper query param
@@ -41,6 +47,8 @@ const params = new URLSearchParams(window.location.search)
 const isHelperMode = params.has('helper')
 const isSimMode = params.has('sim') || params.has('video')
 const isVideoMode = params.has('video')
+// Why: ?aisole / ?roleplay open the AISole role-play studio on load
+const isAisoleMode = params.has('aisole') || params.has('roleplay')
 // Why: allow ?theme=office on demo/sim URLs to preload Dunder Mifflin mode
 import { setTheme as _setTheme } from './theme'
 if (params.get('theme') === 'office') { _setTheme('office') }
@@ -283,11 +291,18 @@ const OFFICE_SIM_CHATTER = [
 const App: React.FC = () => {
   // All hooks must be at the top — before any conditional returns.
   const theme = useTheme() // Why: re-render rooms + agents when /the-office toggles
-  const [agents, setAgents] = useState<Agent[]>(() => [createBoss(), createClaude()])
-  const agentMetaRef = useRef<Map<string, AgentMeta>>(new Map([
+  const [agents, setAgents] = useState<Agent[]>(() => isAisoleMode ? [] : [createBoss(), createClaude()])
+  const agentMetaRef = useRef<Map<string, AgentMeta>>(isAisoleMode ? new Map() : new Map([
     [BOSS_ID, { spawnedAt: Date.now(), arrivedAtDeskAt: Date.now(), idleSince: null, onBreak: false, breakStartedAt: null }],
     [CLAUDE_ID, { spawnedAt: Date.now(), arrivedAtDeskAt: Date.now(), idleSince: null, onBreak: false, breakStartedAt: null }],
   ]))
+
+  // AISole role-play state
+  const rpSession = useRPSession()
+  const rpSessionRef = useRef<RPSession>(rpSession)
+  rpSessionRef.current = rpSession
+  const rpRunning = rpSession.active
+  const [rpStudioOpen, setRpStudioOpen] = useState(isAisoleMode)
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [chatTypingUser, setChatTypingUser] = useState<string | null>(null)
@@ -500,6 +515,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (arrivedRef.current) return
     arrivedRef.current = true
+    if (isAisoleMode) return // Why: role-play mode spawns its own cast, no boss/Claude intro
     const bossCfg = AGENT_CONFIGS[BOSS_ROLE] ?? AGENT_CONFIGS['default']
     addMsg(bossCfg.title, BOSS_ROLE, bossCfg.color, '👑 clocked in')
     const claudeCfg = AGENT_CONFIGS[CLAUDE_ROLE] ?? AGENT_CONFIGS['default']
@@ -842,7 +858,134 @@ const App: React.FC = () => {
   // WebSocket connection
   // ---------------------------------------------------------------------------
 
-  useAgentSocket({ onEvent: handleEvent, url: 'ws://localhost:3334/ws', disabled: isSimMode })
+  useAgentSocket({ onEvent: handleEvent, url: 'ws://localhost:3334/ws', disabled: isSimMode || isAisoleMode })
+
+  // ---------------------------------------------------------------------------
+  // AISole role-play — launch a cast, run the conversation director
+  // ---------------------------------------------------------------------------
+
+  const launchRoleplay = useCallback((next: Omit<RPSession, 'active'>) => {
+    // Use the Office sprite set so every cast member resolves to a real sprite.
+    _setTheme('office')
+
+    // Register each cast member as a chat/agent role + sprite casting.
+    next.cast.forEach((c) => {
+      AGENT_CONFIGS[c.roleKey] = { color: c.color, emoji: '🎭', title: c.name }
+      assignCharacterToRole(c.roleKey, c.slug)
+    })
+
+    // Spawn the cast at desks, walking in from the door.
+    const deskSpots = MAIN_ROOM.agentSpots.filter(s => s.type === 'desk')
+    const castAgents: Agent[] = next.cast.map((c, i) => {
+      const spot = deskSpots[i % deskSpots.length]
+      const base = createAgent({ id: c.roleKey, name: c.name, role: c.roleKey, task: c.persona, spot })
+      return { ...base, pathQueue: computePath(base.position, base.targetPosition) }
+    })
+
+    agentMetaRef.current = new Map(castAgents.map(a => [a.id, {
+      spawnedAt: Date.now(), arrivedAtDeskAt: null, idleSince: null, onBreak: false, breakStartedAt: null,
+    }]))
+    setAgents(castAgents)
+    setMessages([])
+
+    // Apply the chosen scene's lighting.
+    const scene = SCENES.find(s => s.id === next.scene)
+    setDayNightMode(scene?.night ? 'night' : 'day')
+
+    startSession(next)
+    setRpStudioOpen(false)
+    addMsg('system', 'default', '#b14aed', `🎬 ${next.topic}`, true)
+  }, [addMsg])
+
+  const stopRoleplay = useCallback(() => {
+    rpSessionRef.current.cast.forEach(c => releaseRole(c.roleKey))
+    stopSession()
+    setRpStudioOpen(false)
+  }, [])
+
+  // Director — cycles turns while a session is active.
+  useEffect(() => {
+    if (!rpRunning) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+    let lastSpeaker: string | null = null
+    let turn = 0
+    const history: { name: string; text: string }[] = []
+
+    const runTurn = async () => {
+      if (cancelled) return
+      const s = rpSessionRef.current
+      const cast = s.cast
+      if (cast.length === 0) return
+
+      const human = consumeHuman()
+      let speaker: RPCharacter
+      if (cast.length === 1) {
+        speaker = cast[0]
+      } else {
+        const pool = cast.filter(c => c.roleKey !== lastSpeaker)
+        speaker = pool[Math.floor(Math.random() * pool.length)]
+      }
+      lastSpeaker = speaker.roleKey
+
+      // Typing indicator above the speaker + in chat.
+      setTypingAgents(prev => new Set(prev).add(speaker.roleKey))
+
+      const line = await generateLine(speaker, cast, {
+        topic: s.topic, backstory: s.backstory, humanName: s.humanName,
+        turn, history: history.slice(-6), humanPending: human,
+      })
+      if (cancelled) return
+
+      setTypingAgents(prev => { const n = new Set(prev); n.delete(speaker.roleKey); return n })
+
+      // Speech bubble over the character (talking state renders SpeechBubble).
+      setAgents(prev => prev.map(a =>
+        a.id === speaker.roleKey
+          ? { ...a, state: 'talking-to-manager' as const, statusText: line.slice(0, 80) }
+          : a
+      ))
+      addMsg(speaker.name, speaker.roleKey, speaker.color, line)
+      history.push({ name: speaker.name, text: line })
+      turn++
+
+      // Return to seated/working after the bubble fades.
+      setTimeout(() => {
+        if (cancelled) return
+        setAgents(prev => prev.map(a =>
+          a.id === speaker.roleKey && a.state === 'talking-to-manager'
+            ? { ...a, state: 'working' as const }
+            : a
+        ))
+      }, 3000)
+
+      timer = setTimeout(runTurn, 4000 + Math.random() * 3500)
+    }
+
+    timer = setTimeout(runTurn, 1800)
+    return () => { cancelled = true; clearTimeout(timer) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rpRunning])
+
+  // Make the cast wander the room between turns.
+  useEffect(() => {
+    if (!rpRunning) return
+    const iv = setInterval(() => {
+      setAgents(prev => {
+        const workers = prev.filter(a => a.state === 'working')
+        if (workers.length === 0) return prev
+        const who = workers[Math.floor(Math.random() * workers.length)]
+        const wp = MAIN_WAYPOINTS[Math.floor(Math.random() * MAIN_WAYPOINTS.length)]
+        if (!wp) return prev
+        const target = { x: wp.x, y: wp.y }
+        return prev.map(a => a.id === who.id
+          ? { ...a, state: 'coffee-break' as const, targetPosition: target, statusText: 'เดินเล่น', pathQueue: computePath(a.position, target) }
+          : a)
+      })
+    }, 11000)
+    return () => clearInterval(iv)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rpRunning])
 
   // ---------------------------------------------------------------------------
   // Simulation loop — spawns/completes fake agents (only in ?sim mode)
@@ -1557,6 +1700,8 @@ const App: React.FC = () => {
     const bossCfg = AGENT_CONFIGS[BOSS_ROLE] ?? AGENT_CONFIGS['default']
 
     function fireEvent() {
+      // Why: keep role-play sessions clean — no pizza/fire-drill interruptions.
+      if (rpSessionRef.current.active) return
       const event = pickEvent()
 
       // Post main slack announcement (system message)
@@ -1762,13 +1907,15 @@ const App: React.FC = () => {
     )
   }
 
+  const aisoleActive = rpRunning || rpStudioOpen || isAisoleMode
+
   return (
-    <div className="app-wrapper">
+    <div className={`app-wrapper${aisoleActive ? ' aisole' : ''}`}>
       <div className="title-bar">
         <div className="title-bar-dot" style={{ background: '#ff5f57' }} />
         <div className="title-bar-dot" style={{ background: '#febc2e' }} />
         <div className="title-bar-dot" style={{ background: '#28c840' }} />
-        <span className="title-bar-text">CLAUDE CODE — AGENT OFFICE</span>
+        <span className="title-bar-text">{rpRunning ? 'AISole — โสเหล่' : 'CLAUDE CODE — AGENT OFFICE'}</span>
         <button
           className="title-bar-daynight"
           onClick={() => setDayNightMode(prev =>
@@ -1779,6 +1926,11 @@ const App: React.FC = () => {
           {dayNightMode === 'auto' ? 'AUTO' : dayNightMode === 'day' ? 'DAY' : 'NIGHT'}
         </button>
         <span className="title-bar-phase">{getPhaseLabel(effectivePhase)}</span>
+        {rpRunning ? (
+          <button className="aisole-launch-btn stop" onClick={stopRoleplay} title="หยุดวงสนทนา">■ หยุดวง</button>
+        ) : (
+          <button className="aisole-launch-btn" onClick={() => setRpStudioOpen(true)} title="เปิดสตูดิโอ AISole">🎭 AISole</button>
+        )}
       </div>
 
       <div className="app-body">
@@ -1908,15 +2060,24 @@ const App: React.FC = () => {
       </div>
 
       <SlackChat
+        channelName={rpRunning ? 'aisole-live' : 'office-general'}
         messages={messages}
         muted={muted}
         volume={volume}
         onToggleMute={handleToggleMute}
         onVolumeChange={handleVolumeChange}
         onSendMessage={(text) => {
+          setAutoTypeText(undefined)
+          // In role-play mode the input is the audience interjecting — feed it
+          // to the director so the cast reacts to it on the next turn.
+          if (rpSessionRef.current.active) {
+            const who = rpSessionRef.current.humanName || 'ผู้ชม'
+            addMsg(who, 'default', '#ffd166', text)
+            pushHuman(text)
+            return
+          }
           const bossCfg = AGENT_CONFIGS[BOSS_ROLE] ?? AGENT_CONFIGS['default']
           addMsg(bossCfg.title, BOSS_ROLE, bossCfg.color, text)
-          setAutoTypeText(undefined)
           // Send to server so Claude can read it
           fetch('http://127.0.0.1:3334/chat', {
             method: 'POST',
@@ -1935,6 +2096,14 @@ const App: React.FC = () => {
         }}
       />
       </div>
+
+      {rpStudioOpen && (
+        <RolePlayStudio
+          initial={rpSession.cast.length ? rpSession : undefined}
+          onStart={launchRoleplay}
+          onClose={() => setRpStudioOpen(false)}
+        />
+      )}
     </div>
   )
 }
