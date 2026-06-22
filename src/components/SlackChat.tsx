@@ -42,9 +42,11 @@ interface SlackChatProps {
   lastSeenId?: number | null
   /** Channel name shown in the header (defaults to office-general) */
   channelName?: string
+  /** When set, shows a back-to-home button in the header (AISole session) */
+  onHome?: () => void
 }
 
-const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggleMute, onVolumeChange, onSendMessage, onReaction, autoTypeText, dayPhase, typingUser, lastSeenId, channelName = 'office-general' }) => {
+const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggleMute, onVolumeChange, onSendMessage, onReaction, autoTypeText, dayPhase, typingUser, lastSeenId, channelName = 'office-general', onHome }) => {
   const theme = useTheme()
   void theme // Why: subscribe so avatars re-render when /the-office toggles
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -134,6 +136,9 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
   return (
     <div className="slack-panel">
       <div className="slack-header">
+        {onHome && (
+          <button className="slack-home-btn" onClick={onHome} title="กลับหน้าแรก">← หน้าแรก</button>
+        )}
         <div className="slack-channel-icon">#</div>
         <span className="slack-channel-name">{channelName}</span>
         <div className="slack-header-right">

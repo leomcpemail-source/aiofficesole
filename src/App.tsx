@@ -924,7 +924,7 @@ const App: React.FC = () => {
     rememberEpisode(s.cast.map(c => c.slug), s.topic, rpHistoryRef.current)
     s.cast.forEach(c => releaseRole(c.roleKey))
     stopSession()
-    setRpStudioOpen(false)
+    setRpStudioOpen(true) // back to the AISole home menu
   }, [])
 
   // Director — cycles turns while a session is active.
@@ -1966,7 +1966,7 @@ const App: React.FC = () => {
         )}
         <span className="title-bar-phase">{getPhaseLabel(effectivePhase)}</span>
         {rpRunning ? (
-          <button className="aisole-launch-btn stop" onClick={stopRoleplay} title="หยุดวงสนทนา">■ หยุดวง</button>
+          <button className="aisole-launch-btn stop" onClick={stopRoleplay} title="กลับหน้าแรก">← หน้าแรก</button>
         ) : (
           <button className="aisole-launch-btn" onClick={() => setRpStudioOpen(true)} title="เปิดสตูดิโอ AISole">🎭 AISole</button>
         )}
@@ -2106,6 +2106,7 @@ const App: React.FC = () => {
 
       <SlackChat
         channelName={rpRunning ? 'aisole-live' : 'office-general'}
+        onHome={rpRunning ? stopRoleplay : undefined}
         messages={messages}
         muted={muted}
         volume={volume}
