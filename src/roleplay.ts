@@ -30,6 +30,8 @@ export interface RPCharacter {
   persona: string
   /** Accent colour (chat avatar border, sprite glow) */
   color: string
+  /** Stable identity for long-term memory (custom char id, or "slug:<slug>") */
+  memId: string
 }
 
 // Scenes follow the viewer's local time of day (their timezone) — no manual pick.
@@ -50,10 +52,21 @@ export interface RosterEntry { slug: string; name: string }
 // Roster + palette
 // ---------------------------------------------------------------------------
 
-/** All castable characters from this repo, with friendly display names. */
+// Thai nicknames for the sprite roster (no foreign names). Roughly gender-matched.
+const TH_NAMES: Record<string, string> = {
+  'andy-bernard': 'ก้อง', 'angela-martin': 'ส้ม', 'bob-vance': 'ต้น', 'carol-stills': 'ฟ้า',
+  'creed-bratton': 'ลุงเอก', 'darryl-philbin': 'บอย', 'david-wallace': 'กล้า', 'dwight-schrute': 'ดิว',
+  'erin-hannon': 'มิ้น', 'gabe-lewis': 'แบงค์', 'holly-flax': 'แนน', 'jan-levinson': 'อ้อม',
+  'jim-halpert': 'ปอนด์', 'karen-filippelli': 'มุก', 'kelly-kapoor': 'แพรว', 'kevin-malone': 'บูม',
+  'meredith-palmer': 'ใบเฟิร์น', 'michael-scott': 'ตูน', 'nellie-bertram': 'ดาว', 'oscar-martinez': 'นัท',
+  'pam-beesly': 'นก', 'phyllis-vance': 'หนิง', 'robert-california': 'เสือ', 'roy-anderson': 'โต้ง',
+  'ryan-howard': 'ปิง', 'stanley-hudson': 'ลุงสมาน', 'toby-flenderson': 'ตี๋',
+}
+
+/** All castable characters from this repo, with Thai display names. */
 export const ROSTER: RosterEntry[] = getAllOfficeCharacters().map(slug => ({
   slug,
-  name: displayNameFromSlug(slug),
+  name: TH_NAMES[slug] ?? displayNameFromSlug(slug),
 }))
 
 /** Accent palette dealt to cast members in order — AISole sunset/neon vibe. */
@@ -227,20 +240,39 @@ export interface TurnContext {
 // Long-term memory — recall past episodes / store the current one (via brain)
 // ---------------------------------------------------------------------------
 
-/** Fetch summaries of past conversations involving any of these cast slugs. */
-export async function recallMemories(slugs: string[]): Promise<string[]> {
+export interface MemoryEpisode { summary: string; ids: string[] }
+
+/**
+ * Fetch past episodes that involved any of these character identities (memIds).
+ * Returns each episode's summary + the ids that were present, so the caller can
+ * build per-character memory (a character recalls only what IT experienced).
+ */
+export async function recallMemories(ids: string[]): Promise<MemoryEpisode[]> {
   try {
     const res = await fetch(BRAIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'recall', clientId: getClientId(), slugs }),
+      body: JSON.stringify({ action: 'recall', clientId: getClientId(), slugs: ids }),
     })
     const data = await res.json()
     const mems = Array.isArray(data?.memories) ? data.memories : []
-    return mems.map((m: any) => (m.summary as string)).filter(Boolean)
+    return mems
+      .filter((m: any) => m.summary)
+      .map((m: any) => ({ summary: m.summary as string, ids: Array.isArray(m.slugs) ? m.slugs : [] }))
   } catch {
     return []
   }
+}
+
+/** Group recalled episodes into per-character memory (memId -> its summaries). */
+export function memoriesByCharacter(episodes: MemoryEpisode[], castIds: string[]): Record<string, string[]> {
+  const sanitize = (s: string) => s.replace(/[^a-z0-9:_-]/gi, '')
+  const map: Record<string, string[]> = {}
+  for (const id of castIds) {
+    const sid = sanitize(id)
+    map[id] = episodes.filter(e => e.ids.some(x => sanitize(x) === sid)).map(e => e.summary)
+  }
+  return map
 }
 
 /** Dashboard stats from the brain (admin key required). days=0 means all-time. */
@@ -317,7 +349,8 @@ function clean(s: string): string {
 function buildBrainBody(speaker: RPCharacter, cast: RPCharacter[], ctx: TurnContext) {
   const roster = cast.map(c => `${c.name}${c.persona ? ` (${c.persona})` : ''}`).join(', ')
   const memBlock = ctx.memories && ctx.memories.length
-    ? `ความทรงจำจากวงก่อนๆ (ใช้ต่อยอดได้): \n- ${ctx.memories.join('\n- ')}\n`
+    ? `สิ่งที่ "${speaker.name}" จำได้จากอดีต (เป็นพื้นเพ/ประสบการณ์ของตัวเอง ใช้ให้เข้ากับนิสัย ` +
+      `ไม่ต้องพูดถึงตรงๆ และห้ามดึงให้วงไปคุยเรื่องเก่าถ้าไม่เกี่ยวกับหัวข้อ): \n- ${ctx.memories.join('\n- ')}\n`
     : ''
   const phase = ctx.turn < 8
     ? 'ช่วงนี้เกาะหัวข้อหลักไว้'

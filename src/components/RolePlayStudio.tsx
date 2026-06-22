@@ -53,7 +53,7 @@ const RolePlayStudio: React.FC<Props> = ({ onStart, onClose }) => {
       if (exists) next = prev.filter(c => c._key !== p.key)
       else {
         if (prev.length >= MAX_CAST) return prev
-        next = [...prev, { roleKey: '', slug: p.slug, name: p.name, persona: p.persona, color: '', _key: p.key }]
+        next = [...prev, { roleKey: '', slug: p.slug, name: p.name, persona: p.persona, color: '', memId: p.key, _key: p.key }]
       }
       return next.map((c, i) => ({ ...c, roleKey: `rp-${i}`, color: colorForIndex(i) }))
     })
@@ -65,7 +65,7 @@ const RolePlayStudio: React.FC<Props> = ({ onStart, onClose }) => {
   const canStart = topic.trim().length > 0 && cast.length >= 2
 
   const start = () => {
-    const clean = cast.map(({ roleKey, slug, name, persona, color }) => ({ roleKey, slug, name, persona, color }))
+    const clean = cast.map(({ roleKey, slug, name, persona, color, memId }) => ({ roleKey, slug, name, persona, color, memId }))
     onStart({ topic: topic.trim(), backstory: backstory.trim(), humanName: humanName.trim(), scene: autoScene(), cast: clean })
   }
 
