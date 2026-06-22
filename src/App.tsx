@@ -74,6 +74,12 @@ function makeMsgId() { return nextMsgId++ }
 
 // Room spots for main office
 const MAIN_ROOM = ROOMS['main-office']
+
+// AISole declutter: hide the densely-overlapping desk monitors (keep ~4) so the
+// room reads cleaner — characters are the focus, not a wall of screens.
+const AISOLE_HIDE_FURNITURE = new Set([
+  'desk-1b', 'desk-1c', 'desk-2b', 'desk-2c', 'desk-3b', 'desk-3c',
+])
 const ENTRY = MAIN_ROOM.entryPoint           // door position (%)
 const COFFEE_SPOT = MAIN_ROOM.agentSpots.find(s => s.type === 'coffee') ?? null
 const WATER_SPOTS  = MAIN_ROOM.agentSpots.filter(s => s.type === 'water')
@@ -2030,8 +2036,11 @@ const App: React.FC = () => {
             }}
           />
 
-          {/* Furniture — apply interactive state overrides */}
-          <FurnitureRenderer onItemClick={handleFurnitureClick} items={MAIN_ROOM.furniture.map(item => {
+          {/* Furniture — apply interactive state overrides.
+              In AISole mode, thin out the overlapping desks for a cleaner room. */}
+          <FurnitureRenderer onItemClick={handleFurnitureClick} items={MAIN_ROOM.furniture.filter(item =>
+            !(isAisoleMode && AISOLE_HIDE_FURNITURE.has(item.id))
+          ).map(item => {
             const stateOverride = furnitureStates[item.id]
             if (!stateOverride) return item
             // Swap sprite based on state
