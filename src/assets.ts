@@ -3,6 +3,8 @@
 // Sizes are display sizes (px) at 800x600 room resolution
 // Source images are ~6x larger (4800x3584 room)
 
+import { asset } from './asset'
+
 export interface SpriteAsset {
   path: string
   width: number     // display width in px
@@ -81,7 +83,8 @@ export const ASSETS: Record<string, SpriteAsset> = {
 
 // Helper: get asset by key, returns path or fallback
 export function getAssetPath(key: string): string | null {
-  return ASSETS[key]?.path ?? null
+  const p = ASSETS[key]?.path
+  return p ? asset(p) : null
 }
 
 // Helper: get all assets by category

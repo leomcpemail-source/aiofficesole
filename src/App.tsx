@@ -27,6 +27,7 @@ import {
   waterMessage,
 } from './agentManager'
 import { BOSS_ROLE, BOSS_NAME } from './config'
+import { asset } from './asset'
 import { pickEvent } from './events'
 import { getInteraction } from './interactions'
 import {
@@ -36,6 +37,7 @@ import {
 } from './theme'
 import {
   useRPSession, startSession, stopSession, generateLine, pushHuman, consumeHuman,
+  recallMemories, rememberEpisode,
   SCENES, type RPSession, type RPCharacter,
 } from './roleplay'
 
@@ -303,6 +305,9 @@ const App: React.FC = () => {
   rpSessionRef.current = rpSession
   const rpRunning = rpSession.active
   const [rpStudioOpen, setRpStudioOpen] = useState(isAisoleMode)
+  // Recalled shared memory for the running cast + live transcript (for "remember")
+  const rpMemoriesRef = useRef<string[]>([])
+  const rpHistoryRef = useRef<{ name: string; text: string }[]>([])
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [chatTypingUser, setChatTypingUser] = useState<string | null>(null)
@@ -892,13 +897,26 @@ const App: React.FC = () => {
     const scene = SCENES.find(s => s.id === next.scene)
     setDayNightMode(scene?.night ? 'night' : 'day')
 
+    // Reset + recall what this cast remembers from past conversations.
+    rpHistoryRef.current = []
+    rpMemoriesRef.current = []
+    recallMemories(next.cast.map(c => c.slug)).then(mems => {
+      rpMemoriesRef.current = mems
+      if (mems.length > 0) {
+        addMsg('system', 'default', '#7ee787', `🧠 จำวงก่อนได้ ${mems.length} เรื่อง`, true)
+      }
+    })
+
     startSession(next)
     setRpStudioOpen(false)
     addMsg('system', 'default', '#b14aed', `🎬 ${next.topic}`, true)
   }, [addMsg])
 
   const stopRoleplay = useCallback(() => {
-    rpSessionRef.current.cast.forEach(c => releaseRole(c.roleKey))
+    const s = rpSessionRef.current
+    // Persist this conversation so the cast remembers it next time.
+    rememberEpisode(s.cast.map(c => c.slug), s.topic, rpHistoryRef.current)
+    s.cast.forEach(c => releaseRole(c.roleKey))
     stopSession()
     setRpStudioOpen(false)
   }, [])
@@ -933,7 +951,8 @@ const App: React.FC = () => {
 
       const line = await generateLine(speaker, cast, {
         topic: s.topic, backstory: s.backstory, humanName: s.humanName,
-        turn, history: history.slice(-6), humanPending: human,
+        turn, history: history.slice(-16), humanPending: human,
+        memories: rpMemoriesRef.current,
       })
       if (cancelled) return
 
@@ -946,8 +965,16 @@ const App: React.FC = () => {
           : a
       ))
       addMsg(speaker.name, speaker.roleKey, speaker.color, line)
+      // Record the human's interjection in the transcript too, before the reply.
+      if (human) history.push({ name: s.humanName || 'ผู้ชม', text: human })
       history.push({ name: speaker.name, text: line })
+      rpHistoryRef.current = history
       turn++
+
+      // Periodically persist the conversation so memory survives a reload/close.
+      if (turn % 8 === 0) {
+        rememberEpisode(s.cast.map(c => c.slug), s.topic, history)
+      }
 
       // Return to seated/working after the bubble fades.
       setTimeout(() => {
@@ -2046,7 +2073,7 @@ const App: React.FC = () => {
                 }}
               >
                 <img
-                  src={bossEffect}
+                  src={asset(bossEffect)}
                   alt="interaction"
                   style={{ height: 32, width: 'auto', imageRendering: 'pixelated' }}
                 />

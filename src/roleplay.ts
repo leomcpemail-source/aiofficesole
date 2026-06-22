@@ -140,6 +140,23 @@ export function consumeHuman(): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Stable per-browser client id (used to scope long-term memory in Supabase)
+// ---------------------------------------------------------------------------
+
+export function getClientId(): string {
+  try {
+    let id = localStorage.getItem('aisole_client_id')
+    if (!id) {
+      id = 'c-' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+      localStorage.setItem('aisole_client_id', id)
+    }
+    return id
+  } catch {
+    return 'anon'
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Director — picks who speaks and what they say
 // ---------------------------------------------------------------------------
 
@@ -150,6 +167,46 @@ export interface TurnContext {
   turn: number
   history: { name: string; text: string }[]
   humanPending: string | null
+  /** Summaries of past conversations recalled from Supabase (shared memory) */
+  memories?: string[]
+}
+
+// ---------------------------------------------------------------------------
+// Long-term memory — recall past episodes / store the current one (via brain)
+// ---------------------------------------------------------------------------
+
+/** Fetch summaries of past conversations involving any of these cast slugs. */
+export async function recallMemories(slugs: string[]): Promise<string[]> {
+  try {
+    const res = await fetch(BRAIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'recall', clientId: getClientId(), slugs }),
+    })
+    const data = await res.json()
+    const mems = Array.isArray(data?.memories) ? data.memories : []
+    return mems.map((m: any) => (m.summary as string)).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+/** Summarize + persist the current transcript so the cast remembers it later. */
+export async function rememberEpisode(
+  slugs: string[],
+  topic: string,
+  transcript: { name: string; text: string }[],
+): Promise<void> {
+  if (transcript.length < 3) return
+  try {
+    await fetch(BRAIN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'remember', clientId: getClientId(), slugs, topic, transcript }),
+    })
+  } catch {
+    /* best-effort */
+  }
 }
 
 // AISole "brain" edge function — relays a turn to the LLM provider pool and
@@ -194,19 +251,28 @@ function clean(s: string): string {
   return t.slice(0, 220)
 }
 
-/** Build a chat-style prompt for the optional remote brain. */
+/** Build a chat-style prompt for the remote brain. */
 function buildBrainBody(speaker: RPCharacter, cast: RPCharacter[], ctx: TurnContext) {
-  const roster = cast.map(c => `${c.name} (${c.persona || 'ไม่ระบุบทบาท'})`).join(', ')
+  const roster = cast.map(c => `${c.name}${c.persona ? ` (${c.persona})` : ''}`).join(', ')
+  const memBlock = ctx.memories && ctx.memories.length
+    ? `ความทรงจำจากวงก่อนๆ (ใช้ต่อยอดได้): \n- ${ctx.memories.join('\n- ')}\n`
+    : ''
+  const phase = ctx.turn < 8
+    ? 'ช่วงนี้เกาะหัวข้อหลักไว้'
+    : ctx.turn < 20 ? 'ช่วงนี้แตกประเด็นที่เกี่ยวข้องได้' : 'ช่วงนี้ต่อยอดได้อิสระ แต่ให้ต่อจากบทสนทนา'
   const system =
-    `คุณกำลังสวมบทเป็น "${speaker.name}" บทบาท: ${speaker.persona || 'เป็นตัวของตัวเอง'}.\n` +
-    `วงสนทนา: ${roster}.\n` +
+    `คุณกำลังสวมบทเป็น "${speaker.name}" บทบาท: ${speaker.persona || 'เป็นตัวของตัวเอง'}\n` +
+    `ผู้ร่วมวง: ${roster}\n` +
     (ctx.backstory ? `ปูมหลัง: ${ctx.backstory}\n` : '') +
-    `หัวข้อ: ${ctx.topic}.\n` +
-    `พูดสั้นๆ 1-2 ประโยค ภาษาพูด เป็นธรรมชาติ อยู่ในบทบาทเสมอ ` +
-    `ถ้าจะพาดพิงคนในวงให้ใช้ @ชื่อเต็ม.`
-  const history = ctx.history.map(h => ({ role: 'user', content: `${h.name}: ${h.text}` }))
+    memBlock +
+    `หัวข้อ: ${ctx.topic}\n` +
+    `กติกา: พูดในฐานะ "${speaker.name}" เท่านั้น 1-2 ประโยคสั้นๆ ภาษาพูดเป็นธรรมชาติ อยู่ในบทบาทเสมอ ` +
+    `ตอบรับและต่อยอดจากสิ่งที่คนล่าสุดพูด ห้ามพูดซ้ำของเดิม ห้ามเล่นเป็นคนอื่น ` +
+    `ถ้าพาดพิงใครให้ใช้ @ชื่อเต็มตรงตามรายชื่อ ${phase} ` +
+    `ตอบเฉพาะบทพูด ไม่ต้องมีชื่อนำหน้าหรือเครื่องหมายคำพูด`
+  const history = ctx.history.map((h, i) => ({ role: 'user' as const, content: `[${i + 1}] ${h.name}: ${h.text}` }))
   if (ctx.humanPending) {
-    history.push({ role: 'user', content: `${ctx.humanName || 'ผู้ชม'}: ${ctx.humanPending}` })
+    history.push({ role: 'user' as const, content: `[ผู้ชม] ${ctx.humanName || 'ผู้ชม'}: ${ctx.humanPending}` })
   }
   return { messages: [{ role: 'system', content: system }, ...history] }
 }

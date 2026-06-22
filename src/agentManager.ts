@@ -27,6 +27,7 @@
 import { Agent, AgentState, Position } from './types'
 import { AgentSpot, Waypoint } from './rooms'
 import { themedSpawn, themedWork, themedDone, themedCoffee, themedWater, getOfficePropForRole } from './theme'
+import { asset } from './asset'
 
 // ---------------------------------------------------------------------------
 // Spot assignment
@@ -224,7 +225,20 @@ function pickEnergyDrink(agentId: string): string {
  * Map an agent state to the effect sprite path (or null for no effect).
  * Pass statusText/task to detect ultra-think mode.
  */
+/** Public wrapper — resolves the effect path against the app base URL. */
 export function getEffect(
+  state: AgentState,
+  idleDurationMs: number = 0,
+  statusText?: string,
+  agentId?: string,
+  task?: string,
+  role?: string,
+): string | null {
+  const raw = getEffectRaw(state, idleDurationMs, statusText, agentId, task, role)
+  return raw ? asset(raw) : null
+}
+
+function getEffectRaw(
   state: AgentState,
   idleDurationMs: number = 0,
   statusText?: string,

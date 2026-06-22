@@ -5,6 +5,7 @@ import EffectBubble from './EffectBubble'
 import { getEffect } from '../agentManager'
 import { ROLE_TO_CHAR } from '../config'
 import { getSpritePath, useTheme } from '../theme'
+import { asset } from '../asset'
 
 export { ROLE_TO_CHAR }
 
@@ -128,7 +129,7 @@ const Character: React.FC<CharacterProps> = ({ agent, idleDurationMs = 0, zIndex
   void theme
 
   const effectSrc = isTyping
-    ? '/sprites/effects/typing.png'
+    ? asset('/sprites/effects/typing.png')
     : getEffect(agent.state, idleDurationMs, agent.statusText, agent.id, agent.task, agent.role)
 
   return (
