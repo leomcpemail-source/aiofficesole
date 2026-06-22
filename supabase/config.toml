@@ -1,0 +1,8 @@
+# Supabase project config for the AISole "brain" edge function.
+# Link to the AISole office org's project with:  supabase link --project-ref <ref>
+project_id = "aisole-office"
+
+[functions.brain]
+# The brain is called directly from the browser front-end (VITE_BRAIN_URL),
+# so it must not require a Supabase JWT.
+verify_jwt = false

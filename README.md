@@ -21,8 +21,10 @@ is live (`src/styles/aisole.css` — easy to retune).
 
 **Conversation engine** (`src/roleplay.ts`): runs fully offline with a local persona
 engine (phase-based topic adherence + `@mentions`, mirroring AISole's `director.js`). Set
-`VITE_BRAIN_URL` to relay turns to a real LLM brain (e.g. the AISole Supabase edge
-function) — it gracefully falls back to the local engine so the show never stalls.
+`VITE_BRAIN_URL` to relay turns to a real LLM brain (the AISole Supabase edge function
+in [`supabase/`](supabase/README.md)) — it gracefully falls back to the local engine so
+the show never stalls. The brain runs on Claude; see
+[`supabase/README.md`](supabase/README.md) to deploy it and wire up `VITE_BRAIN_URL`.
 
 ## Update — Dunder Mifflin mode
 
