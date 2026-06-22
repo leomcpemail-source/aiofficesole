@@ -22,23 +22,24 @@ function pct(ok: number, total: number): string {
 }
 
 const Dashboard: React.FC = () => {
-  const [key, setKey] = useState<string>(() => localStorage.getItem('aisole_dash_key') ?? '')
+  const tokenRef = React.useRef<string>(localStorage.getItem('aisole_dash_token') ?? '')
+  const [code, setCode] = useState('')
   const [authed, setAuthed] = useState(false)
   const [days, setDays] = useState(7)
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
-  const load = useCallback(async (k: string, d: number) => {
+  const load = useCallback(async (auth: { code?: string; token?: string }, d: number) => {
     setLoading(true); setErr(null)
     try {
-      const data = await fetchStats(k, d)
+      const data = await fetchStats(auth, d)
       if (data?.error) {
-        setErr(data.error === 'unauthorized' ? 'รหัสไม่ถูกต้อง' : data.error)
-        if (data.error === 'unauthorized') { setAuthed(false); localStorage.removeItem('aisole_dash_key') }
+        setErr(data.error === 'unauthorized' ? 'รหัสไม่ถูกต้อง / หมดเวลา' : data.error)
+        if (data.error === 'unauthorized') { setAuthed(false); tokenRef.current = ''; localStorage.removeItem('aisole_dash_token') }
         return
       }
-      localStorage.setItem('aisole_dash_key', k)
+      if (data.token) { tokenRef.current = data.token; localStorage.setItem('aisole_dash_token', data.token) }
       setAuthed(true)
       setStats(data as Stats)
     } catch (e) {
@@ -48,8 +49,8 @@ const Dashboard: React.FC = () => {
     }
   }, [])
 
-  useEffect(() => { if (key) load(key, days) /* try saved key on mount */ }, []) // eslint-disable-line
-  useEffect(() => { if (authed) load(key, days) }, [days]) // eslint-disable-line
+  useEffect(() => { if (tokenRef.current) load({ token: tokenRef.current }, days) }, []) // eslint-disable-line
+  useEffect(() => { if (authed) load({ token: tokenRef.current }, days) }, [days]) // eslint-disable-line
 
   const maxDay = stats ? Math.max(1, ...stats.by_day.map(d => d.calls)) : 1
 
@@ -62,17 +63,17 @@ const Dashboard: React.FC = () => {
 
       {!authed ? (
         <div className="dash-login">
-          <p className="dash-login-label">ใส่ Admin key เพื่อดูสถิติ</p>
+          <p className="dash-login-label">ใส่รหัส 6 หลักจาก Google Authenticator</p>
           <input
             className="dash-input"
-            type="password"
-            placeholder="DASH_KEY"
-            value={key}
-            onChange={e => setKey(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && key) load(key, days) }}
+            inputMode="numeric"
+            placeholder="000000"
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            onKeyDown={e => { if (e.key === 'Enter' && code.length === 6) load({ code }, days) }}
             autoFocus
           />
-          <button className="dash-btn" disabled={!key || loading} onClick={() => load(key, days)}>
+          <button className="dash-btn" disabled={code.length !== 6 || loading} onClick={() => load({ code }, days)}>
             {loading ? 'กำลังตรวจ…' : 'เข้าสู่ระบบ'}
           </button>
           {err && <p className="dash-err">{err}</p>}
@@ -83,7 +84,7 @@ const Dashboard: React.FC = () => {
             {RANGES.map(r => (
               <button key={r.days} className={`dash-range${days === r.days ? ' on' : ''}`} onClick={() => setDays(r.days)}>{r.label}</button>
             ))}
-            <button className="dash-range" onClick={() => load(key, days)} title="รีเฟรช">↻</button>
+            <button className="dash-range" onClick={() => load({ token: tokenRef.current }, days)} title="รีเฟรช">↻</button>
           </div>
 
           {err && <p className="dash-err">{err}</p>}

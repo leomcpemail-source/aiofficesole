@@ -32,6 +32,17 @@ export interface RPCharacter {
   color: string
   /** Stable identity for long-term memory (custom char id, or "slug:<slug>") */
   memId: string
+  /** Gender — derived from the sprite so pronouns match the picture */
+  gender: 'male' | 'female'
+}
+
+// Female sprites in the roster — drives gender so pronouns match the image.
+const FEMALE_SLUGS = new Set([
+  'angela-martin', 'carol-stills', 'erin-hannon', 'holly-flax', 'jan-levinson',
+  'karen-filippelli', 'kelly-kapoor', 'meredith-palmer', 'nellie-bertram', 'pam-beesly', 'phyllis-vance',
+])
+export function genderForSlug(slug: string): 'male' | 'female' {
+  return FEMALE_SLUGS.has(slug) ? 'female' : 'male'
 }
 
 // Scenes follow the viewer's local time of day (their timezone) — no manual pick.
@@ -232,8 +243,14 @@ export interface TurnContext {
   turn: number
   history: { name: string; text: string }[]
   humanPending: string | null
-  /** Summaries of past conversations recalled from Supabase (shared memory) */
+  /** The speaker's own past episode summaries */
   memories?: string[]
+  /** The speaker's gender (pronouns must match) */
+  gender?: 'male' | 'female'
+  /** The speaker's current mood */
+  mood?: string
+  /** The speaker's relationships toward others (name -> note) */
+  rels?: Record<string, string>
 }
 
 // ---------------------------------------------------------------------------
@@ -241,13 +258,14 @@ export interface TurnContext {
 // ---------------------------------------------------------------------------
 
 export interface MemoryEpisode { summary: string; ids: string[] }
+export interface MindRow { char_id: string; name: string; mood: string; rels: Record<string, string> }
+export interface RecallResult { episodes: MemoryEpisode[]; minds: MindRow[] }
 
 /**
- * Fetch past episodes that involved any of these character identities (memIds).
- * Returns each episode's summary + the ids that were present, so the caller can
- * build per-character memory (a character recalls only what IT experienced).
+ * Recall what each character (by memId) personally experienced: past episode
+ * summaries + their persistent mind (mood + relationships).
  */
-export async function recallMemories(ids: string[]): Promise<MemoryEpisode[]> {
+export async function recallMemories(ids: string[]): Promise<RecallResult> {
   try {
     const res = await fetch(BRAIN_URL, {
       method: 'POST',
@@ -256,38 +274,55 @@ export async function recallMemories(ids: string[]): Promise<MemoryEpisode[]> {
     })
     const data = await res.json()
     const mems = Array.isArray(data?.memories) ? data.memories : []
-    return mems
-      .filter((m: any) => m.summary)
-      .map((m: any) => ({ summary: m.summary as string, ids: Array.isArray(m.slugs) ? m.slugs : [] }))
+    const minds = Array.isArray(data?.minds) ? data.minds : []
+    return {
+      episodes: mems.filter((m: any) => m.summary).map((m: any) => ({ summary: m.summary, ids: Array.isArray(m.slugs) ? m.slugs : [] })),
+      minds: minds.map((m: any) => ({ char_id: m.char_id, name: m.name, mood: m.mood ?? '', rels: m.rels ?? {} })),
+    }
   } catch {
-    return []
+    return { episodes: [], minds: [] }
   }
 }
 
+const sanitizeId = (s: string) => s.replace(/[^a-z0-9:_-]/gi, '')
+
 /** Group recalled episodes into per-character memory (memId -> its summaries). */
 export function memoriesByCharacter(episodes: MemoryEpisode[], castIds: string[]): Record<string, string[]> {
-  const sanitize = (s: string) => s.replace(/[^a-z0-9:_-]/gi, '')
   const map: Record<string, string[]> = {}
   for (const id of castIds) {
-    const sid = sanitize(id)
-    map[id] = episodes.filter(e => e.ids.some(x => sanitize(x) === sid)).map(e => e.summary)
+    const sid = sanitizeId(id)
+    map[id] = episodes.filter(e => e.ids.some(x => sanitizeId(x) === sid)).map(e => e.summary)
   }
   return map
 }
 
-/** Dashboard stats from the brain (admin key required). days=0 means all-time. */
-export async function fetchStats(key: string, days: number): Promise<any> {
+/** Index minds by memId for quick per-speaker lookup. */
+export function mindsByCharacter(minds: MindRow[], castIds: string[]): Record<string, MindRow> {
+  const map: Record<string, MindRow> = {}
+  for (const id of castIds) {
+    const sid = sanitizeId(id)
+    const found = minds.find(m => sanitizeId(m.char_id) === sid)
+    if (found) map[id] = found
+  }
+  return map
+}
+
+/** Dashboard stats from the brain. Auth via a TOTP code or a session token. */
+export async function fetchStats(auth: { code?: string; token?: string }, days: number): Promise<any> {
   const res = await fetch(BRAIN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'stats', key, days }),
+    body: JSON.stringify({ action: 'stats', ...auth, days }),
   })
   return res.json()
 }
 
-/** Summarize + persist the current transcript so the cast remembers it later. */
+/**
+ * Summarize + persist the conversation, and run the reflection that updates each
+ * character's mind (mood + relationships). cast = [{ memId, name }].
+ */
 export async function rememberEpisode(
-  slugs: string[],
+  cast: { memId: string; name: string }[],
   topic: string,
   transcript: { name: string; text: string }[],
 ): Promise<void> {
@@ -296,7 +331,10 @@ export async function rememberEpisode(
     await fetch(BRAIN_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'remember', clientId: getClientId(), slugs, topic, transcript }),
+      body: JSON.stringify({
+        action: 'remember', clientId: getClientId(),
+        slugs: cast.map(c => c.memId), cast, topic, transcript,
+      }),
     })
   } catch {
     /* best-effort */
@@ -352,14 +390,21 @@ function buildBrainBody(speaker: RPCharacter, cast: RPCharacter[], ctx: TurnCont
     ? `สิ่งที่ "${speaker.name}" จำได้จากอดีต (เป็นพื้นเพ/ประสบการณ์ของตัวเอง ใช้ให้เข้ากับนิสัย ` +
       `ไม่ต้องพูดถึงตรงๆ และห้ามดึงให้วงไปคุยเรื่องเก่าถ้าไม่เกี่ยวกับหัวข้อ): \n- ${ctx.memories.join('\n- ')}\n`
     : ''
+  const genderLine = ctx.gender === 'female'
+    ? 'เพศ: หญิง — พูดและแทนตัวเองแบบผู้หญิง (เช่น ฉัน/ดิฉัน/หนู ลงท้าย ค่ะ/คะ/นะคะ) ห้ามใช้ ผม/ครับ\n'
+    : 'เพศ: ชาย — พูดและแทนตัวเองแบบผู้ชาย (เช่น ผม/กระผม ลงท้าย ครับ) ห้ามใช้ ดิฉัน/ค่ะ\n'
+  const moodLine = ctx.mood ? `อารมณ์ตอนนี้: ${ctx.mood}\n` : ''
+  const relList = ctx.rels ? Object.entries(ctx.rels).map(([k, v]) => `${k}: ${v}`).join(' · ') : ''
+  const relLine = relList ? `ความสัมพันธ์กับคนอื่น: ${relList}\n` : ''
   const phase = ctx.turn < 8
     ? 'ช่วงนี้เกาะหัวข้อหลักไว้'
     : ctx.turn < 20 ? 'ช่วงนี้แตกประเด็นที่เกี่ยวข้องได้' : 'ช่วงนี้ต่อยอดได้อิสระ แต่ให้ต่อจากบทสนทนา'
   const system =
     `คุณกำลังสวมบทเป็น "${speaker.name}" บทบาท: ${speaker.persona || 'เป็นตัวของตัวเอง'}\n` +
+    genderLine +
     `ผู้ร่วมวง: ${roster}\n` +
     (ctx.backstory ? `ปูมหลัง: ${ctx.backstory}\n` : '') +
-    memBlock +
+    memBlock + moodLine + relLine +
     `หัวข้อ: ${ctx.topic}\n` +
     `กติกา: พูดในฐานะ "${speaker.name}" เท่านั้น 1-2 ประโยคสั้นๆ ภาษาพูดเป็นธรรมชาติ อยู่ในบทบาทเสมอ ` +
     `ตอบรับและต่อยอดจากสิ่งที่คนล่าสุดพูด ห้ามพูดซ้ำของเดิม ห้ามเล่นเป็นคนอื่น ` +

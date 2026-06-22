@@ -38,8 +38,8 @@ import {
 } from './theme'
 import {
   useRPSession, startSession, stopSession, generateLine, pushHuman, consumeHuman,
-  recallMemories, rememberEpisode, memoriesByCharacter, autoScene, scenePhase,
-  type RPSession, type RPCharacter,
+  recallMemories, rememberEpisode, memoriesByCharacter, mindsByCharacter, autoScene, scenePhase,
+  type RPSession, type RPCharacter, type MindRow,
 } from './roleplay'
 
 // ---------------------------------------------------------------------------
@@ -310,8 +310,9 @@ const App: React.FC = () => {
   rpSessionRef.current = rpSession
   const rpRunning = rpSession.active
   const [rpStudioOpen, setRpStudioOpen] = useState(isAisoleMode)
-  // Per-character recalled memory (memId -> its own past summaries) + live transcript
+  // Per-character recalled memory + minds (mood/relationships) + live transcript
   const rpMemByCharRef = useRef<Record<string, string[]>>({})
+  const rpMindByCharRef = useRef<Record<string, MindRow>>({})
   const rpHistoryRef = useRef<{ name: string; text: string }[]>([])
   // Lighting locked to the viewer's local time-of-day (their timezone) in AISole.
   const [forcedPhase, setForcedPhase] = useState<DayPhase | null>(
@@ -905,15 +906,20 @@ const App: React.FC = () => {
     // Lighting follows the viewer's local time-of-day (auto scene).
     setForcedPhase(scenePhase(next.scene))
 
-    // Reset + recall each character's OWN past (memory belongs to the character).
+    // Reset + recall each character's OWN past + mind (memory belongs to the character).
     rpHistoryRef.current = []
     rpMemByCharRef.current = {}
+    rpMindByCharRef.current = {}
     const memIds = next.cast.map(c => c.memId)
-    recallMemories(memIds).then(eps => {
-      rpMemByCharRef.current = memoriesByCharacter(eps, memIds)
-      const remembering = Object.values(rpMemByCharRef.current).filter(a => a.length > 0).length
+    recallMemories(memIds).then(({ episodes, minds }) => {
+      rpMemByCharRef.current = memoriesByCharacter(episodes, memIds)
+      rpMindByCharRef.current = mindsByCharacter(minds, memIds)
+      const remembering = new Set([
+        ...Object.entries(rpMemByCharRef.current).filter(([, a]) => a.length > 0).map(([k]) => k),
+        ...Object.keys(rpMindByCharRef.current),
+      ]).size
       if (remembering > 0) {
-        addMsg('system', 'default', '#7ee787', `🧠 ${remembering} ตัวละครจำเรื่องของตัวเองได้`, true)
+        addMsg('system', 'default', '#7ee787', `🧠 ${remembering} ตัวละครจำเรื่อง/อารมณ์ของตัวเองได้`, true)
       }
     })
 
@@ -925,7 +931,7 @@ const App: React.FC = () => {
   const stopRoleplay = useCallback(() => {
     const s = rpSessionRef.current
     // Persist this conversation so each character remembers it next time.
-    rememberEpisode(s.cast.map(c => c.memId), s.topic, rpHistoryRef.current)
+    rememberEpisode(s.cast.map(c => ({ memId: c.memId, name: c.name })), s.topic, rpHistoryRef.current)
     s.cast.forEach(c => releaseRole(c.roleKey))
     stopSession()
     setRpStudioOpen(true) // back to the AISole home menu
@@ -959,10 +965,14 @@ const App: React.FC = () => {
       // Typing indicator above the speaker + in chat.
       setTypingAgents(prev => new Set(prev).add(speaker.roleKey))
 
+      const mind = rpMindByCharRef.current[speaker.memId]
       const line = await generateLine(speaker, cast, {
         topic: s.topic, backstory: s.backstory, humanName: s.humanName,
         turn, history: history.slice(-16), humanPending: human,
         memories: rpMemByCharRef.current[speaker.memId] ?? [],
+        gender: speaker.gender,
+        mood: mind?.mood,
+        rels: mind?.rels,
       })
       if (cancelled) return
 
@@ -983,7 +993,7 @@ const App: React.FC = () => {
 
       // Periodically persist the conversation so memory survives a reload/close.
       if (turn % 8 === 0) {
-        rememberEpisode(s.cast.map(c => c.memId), s.topic, history)
+        rememberEpisode(s.cast.map(c => ({ memId: c.memId, name: c.name })), s.topic, history)
       }
 
       // Return to seated/working after the bubble fades.
