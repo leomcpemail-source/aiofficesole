@@ -131,7 +131,7 @@ async function generate(messages: Msg[], kind = "chat", maxTokens = 380): Promis
 // ---- memory ----
 function sanitizeSlugs(slugs: unknown): string[] {
   if (!Array.isArray(slugs)) return [];
-  return slugs.map((s) => String(s).replace(/[^a-z0-9-]/gi, "")).filter(Boolean).slice(0, 12);
+  return slugs.map((s) => String(s).replace(/[^a-z0-9:_-]/gi, "")).filter(Boolean).slice(0, 12);
 }
 
 async function handleRecall(body: any, headers: Record<string, string>): Promise<Response> {
@@ -140,7 +140,7 @@ async function handleRecall(body: any, headers: Record<string, string>): Promise
   if (!clientId || slugs.length === 0) return json({ memories: [] }, 200, headers);
   try {
     const path = `aisole_episodes?client_id=eq.${encodeURIComponent(clientId)}&slugs=ov.{${slugs.join(",")}}` +
-      `&order=created_at.desc&limit=3&select=topic,summary,created_at`;
+      `&order=created_at.desc&limit=5&select=topic,summary,created_at,slugs`;
     const rows = await dbGet(path);
     return json({ memories: rows.filter((r) => r.summary) }, 200, headers);
   } catch (e) {

@@ -38,7 +38,7 @@ import {
 } from './theme'
 import {
   useRPSession, startSession, stopSession, generateLine, pushHuman, consumeHuman,
-  recallMemories, rememberEpisode, autoScene, scenePhase,
+  recallMemories, rememberEpisode, memoriesByCharacter, autoScene, scenePhase,
   type RPSession, type RPCharacter,
 } from './roleplay'
 
@@ -310,8 +310,8 @@ const App: React.FC = () => {
   rpSessionRef.current = rpSession
   const rpRunning = rpSession.active
   const [rpStudioOpen, setRpStudioOpen] = useState(isAisoleMode)
-  // Recalled shared memory for the running cast + live transcript (for "remember")
-  const rpMemoriesRef = useRef<string[]>([])
+  // Per-character recalled memory (memId -> its own past summaries) + live transcript
+  const rpMemByCharRef = useRef<Record<string, string[]>>({})
   const rpHistoryRef = useRef<{ name: string; text: string }[]>([])
   // Lighting locked to the viewer's local time-of-day (their timezone) in AISole.
   const [forcedPhase, setForcedPhase] = useState<DayPhase | null>(
@@ -905,13 +905,15 @@ const App: React.FC = () => {
     // Lighting follows the viewer's local time-of-day (auto scene).
     setForcedPhase(scenePhase(next.scene))
 
-    // Reset + recall what this cast remembers from past conversations.
+    // Reset + recall each character's OWN past (memory belongs to the character).
     rpHistoryRef.current = []
-    rpMemoriesRef.current = []
-    recallMemories(next.cast.map(c => c.slug)).then(mems => {
-      rpMemoriesRef.current = mems
-      if (mems.length > 0) {
-        addMsg('system', 'default', '#7ee787', `🧠 จำวงก่อนได้ ${mems.length} เรื่อง`, true)
+    rpMemByCharRef.current = {}
+    const memIds = next.cast.map(c => c.memId)
+    recallMemories(memIds).then(eps => {
+      rpMemByCharRef.current = memoriesByCharacter(eps, memIds)
+      const remembering = Object.values(rpMemByCharRef.current).filter(a => a.length > 0).length
+      if (remembering > 0) {
+        addMsg('system', 'default', '#7ee787', `🧠 ${remembering} ตัวละครจำเรื่องของตัวเองได้`, true)
       }
     })
 
@@ -922,8 +924,8 @@ const App: React.FC = () => {
 
   const stopRoleplay = useCallback(() => {
     const s = rpSessionRef.current
-    // Persist this conversation so the cast remembers it next time.
-    rememberEpisode(s.cast.map(c => c.slug), s.topic, rpHistoryRef.current)
+    // Persist this conversation so each character remembers it next time.
+    rememberEpisode(s.cast.map(c => c.memId), s.topic, rpHistoryRef.current)
     s.cast.forEach(c => releaseRole(c.roleKey))
     stopSession()
     setRpStudioOpen(true) // back to the AISole home menu
@@ -960,7 +962,7 @@ const App: React.FC = () => {
       const line = await generateLine(speaker, cast, {
         topic: s.topic, backstory: s.backstory, humanName: s.humanName,
         turn, history: history.slice(-16), humanPending: human,
-        memories: rpMemoriesRef.current,
+        memories: rpMemByCharRef.current[speaker.memId] ?? [],
       })
       if (cancelled) return
 
@@ -981,7 +983,7 @@ const App: React.FC = () => {
 
       // Periodically persist the conversation so memory survives a reload/close.
       if (turn % 8 === 0) {
-        rememberEpisode(s.cast.map(c => c.slug), s.topic, history)
+        rememberEpisode(s.cast.map(c => c.memId), s.topic, history)
       }
 
       // Return to seated/working after the bubble fades.

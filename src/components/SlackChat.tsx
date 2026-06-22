@@ -198,7 +198,7 @@ const SlackChat: React.FC<SlackChatProps> = ({ messages, muted, volume, onToggle
                   {!msg.isSystem && (
                     <div className="slack-msg-header">
                       <span className="slack-sender" style={{ color: msg.senderColor }}>
-                        {themedDisplayName(msg.senderSprite, msg.sender)}
+                        {msg.senderSprite.startsWith('rp-') ? msg.sender : themedDisplayName(msg.senderSprite, msg.sender)}
                       </span>
                       <span className="slack-time">{msg.timestamp}</span>
                     </div>
