@@ -3,10 +3,11 @@ import {
   ROSTER, SCENES, colorForIndex,
   type RPCharacter, type RPSession, type SceneId,
 } from '../roleplay'
+import { asset } from '../asset'
 
 /** Avatar thumbnail for a roster slug (Office sprite, front-right pose). */
 function rosterAvatar(slug: string): string {
-  return `/sprites/office/characters/${slug}-front-right.png`
+  return asset(`/sprites/office/characters/${slug}-front-right.png`)
 }
 
 interface Props {

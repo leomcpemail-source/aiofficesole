@@ -1,6 +1,7 @@
 /** theme.ts — Office TV theme pack (characters, rooms, chatter, names, events) */
 
 import { useSyncExternalStore } from 'react'
+import { asset } from './asset'
 
 export type ThemeName = 'default' | 'office'
 
@@ -135,20 +136,20 @@ export function getSpriteDir(): string {
 /** Kept signature-compatible for existing callers — agentId ignored; role is the key. */
 export function getSpritePath(_agentId: string, role: string, defaultBase: string, direction: string): string {
   const base = getCharacterBaseForRole(role, defaultBase)
-  return `${getSpriteDir()}/${base}-${direction}.png`
+  return asset(`${getSpriteDir()}/${base}-${direction}.png`)
 }
 
 export function getRoomImage(phase: 'day' | 'night'): string {
   if (state.name === 'office') {
-    return phase === 'night' ? '/rooms/office-night-dm.png' : '/rooms/office-day-dm.png'
+    return asset(phase === 'night' ? '/rooms/office-night-dm.png' : '/rooms/office-day-dm.png')
   }
-  return phase === 'night' ? '/rooms/office-night.png' : '/rooms/office-day.png'
+  return asset(phase === 'night' ? '/rooms/office-night.png' : '/rooms/office-day.png')
 }
 
 /** Returns the ROLE currently cast as Angela (if any), plus cat sprite path. */
 export function getAngelaCat(): { role: string; catSprite: string } | null {
   if (state.name !== 'office' || !state.angelaRole || !state.angelaCat) return null
-  return { role: state.angelaRole, catSprite: `/sprites/office/cats/${state.angelaCat}.png` }
+  return { role: state.angelaRole, catSprite: asset(`/sprites/office/cats/${state.angelaCat}.png`) }
 }
 
 /** Human-readable display name for a slug (e.g. "michael-scott" → "Michael Scott") */

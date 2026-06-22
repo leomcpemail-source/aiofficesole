@@ -1,6 +1,7 @@
 import React from 'react'
 import { FurnitureItem } from '../rooms'
 import { ASSETS } from '../assets'
+import { asset } from '../asset'
 
 interface FurnitureRendererProps {
   items: FurnitureItem[]
@@ -9,13 +10,13 @@ interface FurnitureRendererProps {
 
 function resolveSpriteUrl(sprite: string): string | null {
   // Direct asset key lookup
-  if (ASSETS[sprite]) return ASSETS[sprite].path
+  if (ASSETS[sprite]) return asset(ASSETS[sprite].path)
 
   // Legacy sprite-sheet format "sheet-name:frame" — no image available
   if (sprite.includes(':')) return null
 
   // Try as direct path
-  return sprite
+  return asset(sprite)
 }
 
 function getSpriteHeight(sprite: string): number {

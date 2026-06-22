@@ -19,10 +19,27 @@ Type into the chat at any time to **interject as the audience** — the next spe
 reacts to you. The interface recolours to the AISole sunset/neon palette while a session
 is live (`src/styles/aisole.css` — easy to retune).
 
-**Conversation engine** (`src/roleplay.ts`): runs fully offline with a local persona
-engine (phase-based topic adherence + `@mentions`, mirroring AISole's `director.js`). Set
-`VITE_BRAIN_URL` to relay turns to a real LLM brain (e.g. the AISole Supabase edge
-function) — it gracefully falls back to the local engine so the show never stalls.
+**Conversation engine** (`src/roleplay.ts`): talks to a real LLM via the AISole Supabase
+**`brain`** edge function (provider pool: OpenRouter Nex-N2-Pro → Mistral → Typhoon/ThaiLLM,
+with rate-limit fallback). Keys live in Supabase Vault — never in the client. Falls back to
+a local persona engine if the brain is unreachable, so the show never stalls. Override the
+endpoint with `VITE_BRAIN_URL`.
+
+**Memory** — the cast remembers past conversations. Each session is summarized and stored
+(`aisole_episodes` in Supabase, 30-day TTL via `pg_cron`); when the same characters meet
+again the brain recalls those summaries and injects them, so chats stay coherent and build
+on history. Within a session the full running transcript (numbered, with `@mentions`) is fed
+back each turn for maximum continuity.
+
+### Live demo & deploy (GitHub Pages)
+The app is static and auto-deploys via `.github/workflows/deploy.yml` on every push to `main`:
+
+> **https://leomcpemail-source.github.io/aiofficesole/**
+
+**One-time GitHub setup:** repo **Settings → Pages → Build and deployment → Source: GitHub
+Actions**. That's the only switch you need to flip — the workflow builds with the correct
+`--base=/aiofficesole/` sub-path and publishes `dist/`. (The `brain` allowlist already
+permits `*.github.io`.)
 
 ## Update — Dunder Mifflin mode
 
