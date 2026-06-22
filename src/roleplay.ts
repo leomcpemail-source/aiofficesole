@@ -152,7 +152,10 @@ export interface TurnContext {
   humanPending: string | null
 }
 
-const BRAIN_URL: string | undefined = (import.meta as any).env?.VITE_BRAIN_URL
+// AISole "brain" edge function — relays a turn to the LLM provider pool and
+// hides the API keys server-side. Override per-deploy with VITE_BRAIN_URL.
+const DEFAULT_BRAIN_URL = 'https://heqosjeyqzolijqvblax.supabase.co/functions/v1/brain'
+const BRAIN_URL: string = (import.meta as any).env?.VITE_BRAIN_URL || DEFAULT_BRAIN_URL
 
 function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)] }
 
@@ -185,7 +188,10 @@ const TANGENTS = [
 
 function clean(s: string): string {
   // Strip stray JSON/system noise the way AISole's filter.js does, lightly.
-  return s.replace(/[{}\[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, 220)
+  let t = s.replace(/[{}\[\]]/g, '').replace(/\s+/g, ' ').trim()
+  // Models sometimes wrap the whole line in quotes — peel one pair off.
+  t = t.replace(/^["'“”](.*)["'“”]$/, '$1').trim()
+  return t.slice(0, 220)
 }
 
 /** Build a chat-style prompt for the optional remote brain. */
