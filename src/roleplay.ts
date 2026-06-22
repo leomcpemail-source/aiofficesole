@@ -13,6 +13,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { getAllOfficeCharacters, displayNameFromSlug } from './theme'
+import type { DayPhase } from './daylight'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,7 +32,8 @@ export interface RPCharacter {
   color: string
 }
 
-export type SceneId = 'office-day' | 'office-night' | 'lounge' | 'cafe' | 'sunset' | 'studio'
+// Scenes follow the viewer's local time of day (their timezone) — no manual pick.
+export type SceneId = 'morning' | 'day' | 'evening' | 'night'
 
 export interface RPSession {
   active: boolean
@@ -64,15 +66,65 @@ export function colorForIndex(i: number): string {
   return PALETTE[i % PALETTE.length]
 }
 
-/** Scenes the user can stage the conversation in. */
-export const SCENES: { id: SceneId; label: string; emoji: string; night: boolean }[] = [
-  { id: 'office-day', label: 'ออฟฟิศ (กลางวัน)', emoji: '🏢', night: false },
-  { id: 'office-night', label: 'ออฟฟิศ (กลางคืน)', emoji: '🌙', night: true },
-  { id: 'lounge', label: 'เลานจ์', emoji: '🛋️', night: false },
-  { id: 'cafe', label: 'คาเฟ่', emoji: '☕', night: false },
-  { id: 'sunset', label: 'พระอาทิตย์ตก', emoji: '🌇', night: true },
-  { id: 'studio', label: 'สตูดิโอ', emoji: '🎬', night: true },
+/** Time-of-day scenes mapped to the office lighting phases. */
+export const SCENES: { id: SceneId; label: string; emoji: string; phase: DayPhase; night: boolean }[] = [
+  { id: 'morning', label: 'เช้า', emoji: '🌅', phase: 'dawn', night: false },
+  { id: 'day', label: 'กลางวัน', emoji: '☀️', phase: 'afternoon', night: false },
+  { id: 'evening', label: 'เย็น', emoji: '🌇', phase: 'dusk', night: false },
+  { id: 'night', label: 'กลางคืน', emoji: '🌙', phase: 'night', night: true },
 ]
+
+/** Pick the scene matching the viewer's current local time (their timezone). */
+export function autoScene(): SceneId {
+  const h = new Date().getHours()
+  if (h >= 5 && h < 11) return 'morning'
+  if (h >= 11 && h < 16) return 'day'
+  if (h >= 16 && h < 19) return 'evening'
+  return 'night'
+}
+
+/** Lighting phase for a scene (drives the day/night image + tint overlay). */
+export function scenePhase(id: SceneId): DayPhase {
+  return SCENES.find(s => s.id === id)?.phase ?? 'afternoon'
+}
+
+// ---------------------------------------------------------------------------
+// Custom characters — user-created cast saved in localStorage
+// ---------------------------------------------------------------------------
+
+export interface CustomCharacter {
+  id: string
+  name: string
+  slug: string      // which roster sprite represents them
+  persona: string
+  color: string
+}
+
+const CUSTOM_KEY = 'aisole_custom_chars'
+
+export function getCustomCharacters(): CustomCharacter[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_KEY)
+    return raw ? (JSON.parse(raw) as CustomCharacter[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function saveCustomCharacter(c: CustomCharacter): CustomCharacter[] {
+  const list = getCustomCharacters()
+  const i = list.findIndex(x => x.id === c.id)
+  if (i >= 0) list[i] = c
+  else list.push(c)
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)) } catch {}
+  return list
+}
+
+export function deleteCustomCharacter(id: string): CustomCharacter[] {
+  const list = getCustomCharacters().filter(x => x.id !== id)
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(list)) } catch {}
+  return list
+}
 
 // ---------------------------------------------------------------------------
 // Store
@@ -81,7 +133,7 @@ export const SCENES: { id: SceneId; label: string; emoji: string; night: boolean
 const STORAGE_KEY = 'aisole_session'
 
 function emptySession(): RPSession {
-  return { active: false, topic: '', backstory: '', humanName: '', scene: 'office-day', cast: [] }
+  return { active: false, topic: '', backstory: '', humanName: '', scene: autoScene(), cast: [] }
 }
 
 let session: RPSession = loadInitial()

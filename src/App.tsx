@@ -37,8 +37,8 @@ import {
 } from './theme'
 import {
   useRPSession, startSession, stopSession, generateLine, pushHuman, consumeHuman,
-  recallMemories, rememberEpisode,
-  SCENES, type RPSession, type RPCharacter,
+  recallMemories, rememberEpisode, autoScene, scenePhase,
+  type RPSession, type RPCharacter,
 } from './roleplay'
 
 // ---------------------------------------------------------------------------
@@ -49,8 +49,11 @@ const params = new URLSearchParams(window.location.search)
 const isHelperMode = params.has('helper')
 const isSimMode = params.has('sim') || params.has('video')
 const isVideoMode = params.has('video')
-// Why: ?aisole / ?roleplay open the AISole role-play studio on load
-const isAisoleMode = params.has('aisole') || params.has('roleplay')
+// AISole role-play is the default experience (studio opens on load).
+// Opt into the classic Claude-Office visualiser with ?office, or dev/demo
+// modes with ?sim / ?video / ?helper.
+const isOfficeClassic = params.has('office')
+const isAisoleMode = !isHelperMode && !isSimMode && !isOfficeClassic
 // Why: allow ?theme=office on demo/sim URLs to preload Dunder Mifflin mode
 import { setTheme as _setTheme } from './theme'
 if (params.get('theme') === 'office') { _setTheme('office') }
@@ -308,6 +311,10 @@ const App: React.FC = () => {
   // Recalled shared memory for the running cast + live transcript (for "remember")
   const rpMemoriesRef = useRef<string[]>([])
   const rpHistoryRef = useRef<{ name: string; text: string }[]>([])
+  // Lighting locked to the viewer's local time-of-day (their timezone) in AISole.
+  const [forcedPhase, setForcedPhase] = useState<DayPhase | null>(
+    isAisoleMode ? scenePhase(autoScene()) : null,
+  )
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [chatTypingUser, setChatTypingUser] = useState<string | null>(null)
@@ -893,9 +900,8 @@ const App: React.FC = () => {
     setAgents(castAgents)
     setMessages([])
 
-    // Apply the chosen scene's lighting.
-    const scene = SCENES.find(s => s.id === next.scene)
-    setDayNightMode(scene?.night ? 'night' : 'day')
+    // Lighting follows the viewer's local time-of-day (auto scene).
+    setForcedPhase(scenePhase(next.scene))
 
     // Reset + recall what this cast remembers from past conversations.
     rpHistoryRef.current = []
@@ -1715,6 +1721,8 @@ const App: React.FC = () => {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
+    // Why: AISole role-play has no random pizza/fire-drill office events.
+    if (isAisoleMode) return
     // Percentage-based target positions for each event type (matching room layout)
     const EVENT_TARGETS: Record<string, { x: number; y: number }> = {
       'fire-drill': { x: 67.5, y: 48.9 },
@@ -1903,9 +1911,11 @@ const App: React.FC = () => {
   // Misc handlers
   // ---------------------------------------------------------------------------
 
-  // Effective day phase (respects manual override)
-  const effectivePhase: DayPhase = dayNightMode === 'auto' ? dayPhase
-    : dayNightMode === 'day' ? 'morning' : 'night'
+  // Effective day phase — AISole locks it to the viewer's local time-of-day
+  // (forcedPhase); the classic office uses its manual toggle / compressed cycle.
+  const effectivePhase: DayPhase = forcedPhase ?? (dayNightMode === 'auto' ? dayPhase
+    : dayNightMode === 'day' ? 'morning' : 'night')
+  const phaseNightOpacity = (p: DayPhase) => p === 'night' ? 1 : p === 'dusk' ? 0.6 : p === 'dawn' ? 0.3 : 0
   const isNight = effectivePhase === 'night' || effectivePhase === 'dusk'
 
   const [volume, setVolume] = useState(sfx.getVolume())
@@ -1942,16 +1952,18 @@ const App: React.FC = () => {
         <div className="title-bar-dot" style={{ background: '#ff5f57' }} />
         <div className="title-bar-dot" style={{ background: '#febc2e' }} />
         <div className="title-bar-dot" style={{ background: '#28c840' }} />
-        <span className="title-bar-text">{rpRunning ? 'AISole — โสเหล่' : 'CLAUDE CODE — AGENT OFFICE'}</span>
-        <button
-          className="title-bar-daynight"
-          onClick={() => setDayNightMode(prev =>
-            prev === 'auto' ? 'day' : prev === 'day' ? 'night' : 'auto'
-          )}
-          title={`Mode: ${dayNightMode}`}
-        >
-          {dayNightMode === 'auto' ? 'AUTO' : dayNightMode === 'day' ? 'DAY' : 'NIGHT'}
-        </button>
+        <span className="title-bar-text">{isAisoleMode ? 'AISole — โสเหล่' : 'CLAUDE CODE — AGENT OFFICE'}</span>
+        {!isAisoleMode && (
+          <button
+            className="title-bar-daynight"
+            onClick={() => setDayNightMode(prev =>
+              prev === 'auto' ? 'day' : prev === 'day' ? 'night' : 'auto'
+            )}
+            title={`Mode: ${dayNightMode}`}
+          >
+            {dayNightMode === 'auto' ? 'AUTO' : dayNightMode === 'day' ? 'DAY' : 'NIGHT'}
+          </button>
+        )}
         <span className="title-bar-phase">{getPhaseLabel(effectivePhase)}</span>
         {rpRunning ? (
           <button className="aisole-launch-btn stop" onClick={stopRoleplay} title="หยุดวงสนทนา">■ หยุดวง</button>
@@ -1982,7 +1994,8 @@ const App: React.FC = () => {
             className="room-background room-background-night"
             style={{
               backgroundImage: `url(${getRoomImage('night')})`,
-              opacity: dayNightMode === 'auto' ? nightOpacity : dayNightMode === 'night' ? 1 : 0,
+              opacity: forcedPhase != null ? phaseNightOpacity(forcedPhase)
+                : dayNightMode === 'auto' ? nightOpacity : dayNightMode === 'night' ? 1 : 0,
             }}
           />
 
@@ -2126,7 +2139,6 @@ const App: React.FC = () => {
 
       {rpStudioOpen && (
         <RolePlayStudio
-          initial={rpSession.cast.length ? rpSession : undefined}
           onStart={launchRoleplay}
           onClose={() => setRpStudioOpen(false)}
         />

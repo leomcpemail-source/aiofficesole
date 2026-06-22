@@ -5,9 +5,9 @@ A pixel art virtual office that visualizes your AI agents working in real-time. 
 ## Update — AISole role-play mode 🗣️
 
 Adapted for the **AISole (AI โสเหล่)** concept: instead of only visualizing Claude Code
-agents, you can **cast the office characters and have them role-play a conversation you
-direct**. Open the studio from the **🎭 AISole** button in the title bar (or load
-`?aisole` / `?roleplay`), then:
+agents, you **cast the office characters and have them role-play a conversation you
+direct**. The studio opens on load (it's the default experience — the classic Claude-Office
+visualiser still lives at `?office`). In the studio:
 
 1. **หัวข้อ** — type the topic you want them to talk about (+ optional backstory / your name in the room).
 2. **ตัวละคร** — pick characters from this repo's cast and give each one a **role/persona** (free text — they'll stay in character).
