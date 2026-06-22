@@ -150,6 +150,15 @@ export function deleteCustomCharacter(id: string): CustomCharacter[] {
   return list
 }
 
+/** Purge a character's server-side memory (mind + episodes) — used on delete. */
+export function forgetCharacter(memId: string): void {
+  fetch(BRAIN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'forget', clientId: getClientId(), id: memId }),
+  }).catch(() => {})
+}
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------

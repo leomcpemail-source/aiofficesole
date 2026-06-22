@@ -29,6 +29,7 @@ import {
 } from './agentManager'
 import { BOSS_ROLE, BOSS_NAME } from './config'
 import { asset } from './asset'
+import { speak, isTtsEnabled, setTtsEnabled, ttsSupported } from './tts'
 import { pickEvent } from './events'
 import { getInteraction } from './interactions'
 import {
@@ -310,6 +311,7 @@ const App: React.FC = () => {
   rpSessionRef.current = rpSession
   const rpRunning = rpSession.active
   const [rpStudioOpen, setRpStudioOpen] = useState(isAisoleMode)
+  const [ttsOn, setTtsOn] = useState(isTtsEnabled())
   // Per-character recalled memory + minds (mood/relationships) + live transcript
   const rpMemByCharRef = useRef<Record<string, string[]>>({})
   const rpMindByCharRef = useRef<Record<string, MindRow>>({})
@@ -985,6 +987,9 @@ const App: React.FC = () => {
           : a
       ))
       addMsg(speaker.name, speaker.roleKey, speaker.color, line)
+      // Speak the line (Thai TTS, distinct voice per character) if enabled.
+      const vidx = parseInt(speaker.roleKey.split('-')[1] || '0', 10) || 0
+      speak(line, { gender: speaker.gender, index: vidx })
       // Record the human's interjection in the transcript too, before the reply.
       if (human) history.push({ name: s.humanName || 'ผู้ชม', text: human })
       history.push({ name: speaker.name, text: line })
@@ -1983,6 +1988,14 @@ const App: React.FC = () => {
           </button>
         )}
         <span className="title-bar-phase">{getPhaseLabel(effectivePhase)}</span>
+        {isAisoleMode && ttsSupported() && (
+          <button
+            className="aisole-launch-btn"
+            style={{ background: ttsOn ? undefined : 'linear-gradient(135deg,#555,#777)' }}
+            onClick={() => { const v = !ttsOn; setTtsEnabled(v); setTtsOn(v) }}
+            title={ttsOn ? 'ปิดเสียงพูด' : 'เปิดเสียงพูด'}
+          >{ttsOn ? '🔊 เสียง' : '🔇 เสียง'}</button>
+        )}
         {rpRunning ? (
           <button className="aisole-launch-btn stop" onClick={stopRoleplay} title="กลับหน้าแรก">← หน้าแรก</button>
         ) : (
