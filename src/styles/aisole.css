@@ -333,7 +333,8 @@
 .slack-home-btn:hover { filter: brightness(1.12); }
 
 /* ===== Mobile / responsive ===== */
-@media (max-width: 820px) {
+/* Any small screen: drop the fixed desktop frame, fill the viewport. */
+@media (max-width: 820px), (max-height: 560px) {
   .app-wrapper {
     position: static;
     transform: none;
@@ -346,9 +347,19 @@
     border: none;
     border-radius: 0;
     box-shadow: none;
+    overflow-y: auto; /* safety: nothing is ever unreachable */
   }
+  .title-bar-text { font-size: 8px; letter-spacing: 1px; }
+  .title-bar-phase { display: none; }
+  .aisole-launch-btn { margin-left: 6px; }
+  .rp-modal { width: 94vw; max-height: 90vh; padding: 18px 15px; }
+  .rp-roster { grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); max-height: 38vh; }
+  .rp-home-btn { font-size: 15px; padding: 15px 16px; }
+}
+
+/* Portrait phones: scene on top (sized to the room), chat fills the rest. */
+@media (max-width: 820px) and (orientation: portrait) {
   .app-body { flex-direction: column; }
-  /* Scene sizes to the room (no big black letterbox bars); chat fills the rest. */
   .office-view { flex: 0 0 auto; min-height: 0; padding: 0; background: #0a0a0f; }
   .office-view .room-container { max-height: none; }
   .slack-panel {
@@ -356,18 +367,24 @@
     min-width: 0;
     flex: 1 1 auto;
     height: auto;
-    min-height: 0;
+    min-height: 40vh;
     border-left: none;
     border-top: 1px solid var(--ais-border);
   }
-  .title-bar-text { font-size: 8px; letter-spacing: 1px; }
-  .title-bar-phase { display: none; }
-  .aisole-launch-btn { margin-left: 6px; }
+}
 
-  /* Studio fits small screens */
-  .rp-modal { width: 94vw; max-height: 90vh; padding: 18px 15px; }
-  .rp-roster { grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); max-height: 38vh; }
-  .rp-home-btn { font-size: 15px; padding: 15px 16px; }
+/* Landscape phones: scene left, chat right (the room is wide, so it fits). */
+@media (max-height: 560px) and (orientation: landscape) {
+  .app-body { flex-direction: row; }
+  .office-view { flex: 1 1 auto; min-width: 0; min-height: 0; padding: 0; background: #0a0a0f; }
+  .slack-panel {
+    width: 42%;
+    min-width: 200px;
+    height: 100%;
+    flex: 0 0 42%;
+    border-left: 1px solid var(--ais-border);
+    border-top: none;
+  }
 }
 
 /* ===== Dashboard (db) ===== */
