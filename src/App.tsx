@@ -2022,7 +2022,12 @@ const App: React.FC = () => {
             const spot = MAIN_ROOM.agentSpots.find(s => s.id === agent.assignedSpotId)
             const atDesk = Math.abs(agent.position.x - agent.deskPosition.x) < 1 &&
                            Math.abs(agent.position.y - agent.deskPosition.y) < 1
-            const zOverride = atDesk && spot?.zIndex ? spot.zIndex : undefined
+            // AISole cast must stay fully visible (the show is watching them talk),
+            // so render them above all furniture instead of tucked behind desks.
+            const isRp = agent.role.startsWith('rp-')
+            const zOverride = isRp
+              ? 300 + Math.round(agent.position.y)
+              : atDesk && spot?.zIndex ? spot.zIndex : undefined
 
             const meta = agentMetaRef.current.get(agent.id)
             const idleDurationMs =
