@@ -4,6 +4,7 @@ import './styles/rooms.css'
 import './styles/aisole.css'
 import SlackChat, { ChatMessage } from './components/SlackChat'
 import RolePlayStudio from './components/RolePlayStudio'
+import Dashboard from './components/Dashboard'
 import Character from './components/Character'
 import FurnitureRenderer from './components/FurnitureRenderer'
 import { Agent, OfficeEvent, AGENT_CONFIGS } from './types'
@@ -53,7 +54,8 @@ const isVideoMode = params.has('video')
 // Opt into the classic Claude-Office visualiser with ?office, or dev/demo
 // modes with ?sim / ?video / ?helper.
 const isOfficeClassic = params.has('office')
-const isAisoleMode = !isHelperMode && !isSimMode && !isOfficeClassic
+const isDashboard = params.has('dashboard')
+const isAisoleMode = !isHelperMode && !isSimMode && !isOfficeClassic && !isDashboard
 // Why: allow ?theme=office on demo/sim URLs to preload Dunder Mifflin mode
 import { setTheme as _setTheme } from './theme'
 if (params.get('theme') === 'office') { _setTheme('office') }
@@ -1935,6 +1937,10 @@ const App: React.FC = () => {
   // ---------------------------------------------------------------------------
   // Render — helper mode renders PlacementHelper in place of the full app
   // ---------------------------------------------------------------------------
+
+  if (isDashboard) {
+    return <Dashboard />
+  }
 
   if (isHelperMode) {
     return (

@@ -1,11 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-// AISole "brain" — LLM relay + conversation memory.
+// AISole "brain" — LLM relay + memory + dashboard metrics.
 //   POST {messages}                              -> chat (relay to provider pool)
-//   POST {action:"recall",   clientId, slugs}    -> past episode summaries for a cast
+//   POST {action:"recall",   clientId, slugs}    -> past episode summaries
 //   POST {action:"remember", clientId, slugs, topic, transcript} -> summarize + store
-// Keys live in Supabase Vault (read via service-role RPC). Deployed with
-// verify_jwt = false; guarded by an Origin allowlist + per-IP rate limit.
+//   POST {action:"stats",    key, days}          -> dashboard aggregates (admin key)
+// Keys live in Supabase Vault (read via service-role RPC). verify_jwt = false;
+// guarded by an Origin allowlist + per-IP rate limit.
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -63,6 +64,28 @@ async function getSecret(name: string): Promise<string | null> {
   return null;
 }
 
+// ---- db helpers (PostgREST, service role) ----
+async function dbGet(path: string): Promise<any[]> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` },
+  });
+  if (!res.ok) throw new Error(`db get ${res.status}`);
+  return res.json();
+}
+async function dbInsert(table: string, row: unknown): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(row),
+  });
+  if (!res.ok) throw new Error(`db insert ${res.status}: ${(await res.text()).slice(0, 140)}`);
+}
+
+function logMetric(provider: string, model: string, kind: string, success: boolean, latencyMs: number) {
+  const pr = dbInsert("aisole_metrics", { provider, model, kind, success, latency_ms: latencyMs }).catch(() => {});
+  try { (globalThis as any).EdgeRuntime?.waitUntil?.(pr); } catch (_e) { /* ignore */ }
+}
+
 // ---- LLM providers ----
 interface Msg { role: string; content: string; }
 interface Provider { name: string; secret: string; url: string; model: string; }
@@ -87,37 +110,28 @@ async function callProvider(p: Provider, key: string, messages: Msg[], maxTokens
   return text;
 }
 
-async function generate(messages: Msg[], maxTokens = 380): Promise<{ text: string; provider: string; model: string }> {
+async function generate(messages: Msg[], kind = "chat", maxTokens = 380): Promise<{ text: string; provider: string; model: string }> {
   const errors: string[] = [];
   for (const p of PROVIDERS) {
     const key = await getSecret(p.secret);
     if (!key) { errors.push(`${p.name}: no key`); continue; }
-    try { return { text: await callProvider(p, key, messages, maxTokens), provider: p.name, model: p.model }; }
-    catch (e) { errors.push(String((e as Error)?.message ?? e)); }
+    const t0 = Date.now();
+    try {
+      const text = await callProvider(p, key, messages, maxTokens);
+      logMetric(p.name, p.model, kind, true, Date.now() - t0);
+      return { text, provider: p.name, model: p.model };
+    } catch (e) {
+      logMetric(p.name, p.model, kind, false, Date.now() - t0);
+      errors.push(String((e as Error)?.message ?? e));
+    }
   }
   throw new Error(`all providers failed: ${errors.join(" | ")}`);
 }
 
-// ---- memory (PostgREST with service role; RLS-protected table) ----
+// ---- memory ----
 function sanitizeSlugs(slugs: unknown): string[] {
   if (!Array.isArray(slugs)) return [];
   return slugs.map((s) => String(s).replace(/[^a-z0-9-]/gi, "")).filter(Boolean).slice(0, 12);
-}
-
-async function dbGet(path: string): Promise<any[]> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` },
-  });
-  if (!res.ok) throw new Error(`db get ${res.status}`);
-  return res.json();
-}
-async function dbInsert(table: string, row: unknown): Promise<void> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-    method: "POST",
-    headers: { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-    body: JSON.stringify(row),
-  });
-  if (!res.ok) throw new Error(`db insert ${res.status}: ${(await res.text()).slice(0, 140)}`);
 }
 
 async function handleRecall(body: any, headers: Record<string, string>): Promise<Response> {
@@ -147,7 +161,7 @@ async function handleRemember(body: any, headers: Record<string, string>): Promi
     const r = await generate([
       { role: "system", content: "สรุปบทสนทนาต่อไปนี้สั้นๆ 2-3 ประโยคเป็นภาษาไทย ว่าคุยเรื่องอะไร และใครมีจุดยืน/ความเห็นอย่างไร เพื่อใช้เป็นความทรงจำของตัวละครในครั้งถัดไป" },
       { role: "user", content: `หัวข้อ: ${topic}\n\n${convo}` },
-    ], 220);
+    ], "summary", 220);
     summary = r.text;
   } catch (_e) { /* store transcript even if summary fails */ }
 
@@ -156,6 +170,26 @@ async function handleRemember(body: any, headers: Record<string, string>): Promi
     return json({ ok: true, summary }, 200, headers);
   } catch (e) {
     return json({ ok: false, error: String((e as Error)?.message ?? e) }, 200, headers);
+  }
+}
+
+// ---- dashboard ----
+async function handleStats(body: any, headers: Record<string, string>): Promise<Response> {
+  const key = String(body?.key ?? "");
+  const dash = await getSecret("DASH_KEY");
+  if (!dash || key !== dash) return json({ error: "unauthorized" }, 401, headers);
+  const days = Number(body?.days ?? 7);
+  const since = days > 0 ? new Date(Date.now() - days * 86400000).toISOString() : "1970-01-01T00:00:00Z";
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/aisole_stats`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` },
+      body: JSON.stringify({ p_since: since }),
+    });
+    const data = await res.json();
+    return json(data, 200, headers);
+  } catch (e) {
+    return json({ error: String((e as Error)?.message ?? e) }, 200, headers);
   }
 }
 
@@ -178,11 +212,11 @@ Deno.serve(async (req: Request) => {
     const action = body?.action ?? "chat";
     if (action === "recall") return await handleRecall(body, headers);
     if (action === "remember") return await handleRemember(body, headers);
+    if (action === "stats") return await handleStats(body, headers);
 
-    // default: chat
     const messages: Msg[] = Array.isArray(body?.messages) ? body.messages : [];
     if (messages.length === 0) return json({ error: "no messages" }, 400, headers);
-    const r = await generate(messages);
+    const r = await generate(messages, "chat");
     return json(r, 200, headers);
   } catch (e) {
     return json({ error: String((e as Error)?.message ?? e) }, 502, headers);
