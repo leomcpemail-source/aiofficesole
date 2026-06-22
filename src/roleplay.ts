@@ -243,6 +243,16 @@ export async function recallMemories(slugs: string[]): Promise<string[]> {
   }
 }
 
+/** Dashboard stats from the brain (admin key required). days=0 means all-time. */
+export async function fetchStats(key: string, days: number): Promise<any> {
+  const res = await fetch(BRAIN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'stats', key, days }),
+  })
+  return res.json()
+}
+
 /** Summarize + persist the current transcript so the cast remembers it later. */
 export async function rememberEpisode(
   slugs: string[],

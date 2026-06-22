@@ -348,12 +348,15 @@
     box-shadow: none;
   }
   .app-body { flex-direction: column; }
-  .office-view { flex: 1 1 auto; min-height: 0; }
+  /* Scene sizes to the room (no big black letterbox bars); chat fills the rest. */
+  .office-view { flex: 0 0 auto; min-height: 0; padding: 0; background: #0a0a0f; }
+  .office-view .room-container { max-height: none; }
   .slack-panel {
     width: 100%;
     min-width: 0;
-    flex: 0 0 46%;
-    height: 46%;
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 0;
     border-left: none;
     border-top: 1px solid var(--ais-border);
   }
@@ -366,3 +369,52 @@
   .rp-roster { grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); max-height: 38vh; }
   .rp-home-btn { font-size: 15px; padding: 15px 16px; }
 }
+
+/* ===== Dashboard (db) ===== */
+.dash-root {
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background: radial-gradient(140% 120% at 50% -10%, var(--ais-bg-1) 0%, var(--ais-bg-0) 70%);
+  color: var(--ais-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans Thai', sans-serif;
+  padding: 18px clamp(14px, 4vw, 40px) 40px;
+}
+.dash-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.dash-logo { font-size: 20px; font-weight: 800; background: var(--ais-sunset); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.dash-back { font-size: 13px; color: var(--ais-text-dim); text-decoration: none; }
+.dash-back:hover { color: var(--ais-accent-2); }
+
+.dash-login { max-width: 320px; margin: 12vh auto 0; display: flex; flex-direction: column; gap: 10px; }
+.dash-login-label { font-size: 13px; color: var(--ais-text-dim); }
+.dash-input, .dash-btn { width: 100%; box-sizing: border-box; border-radius: 10px; padding: 11px 13px; font-size: 14px; }
+.dash-input { background: rgba(255,255,255,0.05); border: 1px solid var(--ais-border); color: var(--ais-text); outline: none; }
+.dash-input:focus { border-color: var(--ais-accent-2); }
+.dash-btn { border: none; color: #1a0a2e; font-weight: 700; cursor: pointer; background: var(--ais-sunset); }
+.dash-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.dash-err { color: #ff8a8a; font-size: 13px; }
+
+.dash-ranges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.dash-range { border: 1px solid var(--ais-border); background: rgba(255,255,255,0.04); color: var(--ais-text); border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+.dash-range.on { background: var(--ais-sunset); color: #1a0a2e; font-weight: 700; border: none; }
+
+.dash-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 22px; }
+.dash-card { background: var(--ais-panel); border: 1px solid var(--ais-border); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+.dash-num { font-size: 26px; font-weight: 800; color: var(--ais-accent-2); }
+.dash-num small { font-size: 13px; color: var(--ais-text-dim); }
+.dash-cap { font-size: 12px; color: var(--ais-text-dim); }
+
+.dash-h3 { font-size: 14px; margin: 18px 0 8px; color: var(--ais-text); }
+.dash-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dash-table th { text-align: left; color: var(--ais-text-dim); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--ais-border); }
+.dash-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.dash-model { color: var(--ais-text-dim); font-size: 11px; }
+.dash-good { color: #7ee787; }
+.dash-bad { color: #ff8a8a; }
+.dash-empty { color: var(--ais-text-dim); font-size: 12px; padding: 8px; }
+
+.dash-bars { display: flex; align-items: flex-end; gap: 6px; height: 140px; padding-top: 8px; }
+.dash-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; gap: 4px; }
+.dash-bar { width: 70%; min-height: 3px; background: rgba(177,74,237,0.3); border-radius: 4px 4px 0 0; display: flex; align-items: flex-end; }
+.dash-bar-ok { width: 100%; background: var(--ais-sunset); border-radius: 4px 4px 0 0; }
+.dash-bar-label { font-size: 9px; color: var(--ais-text-dim); }
