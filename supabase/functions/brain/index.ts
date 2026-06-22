@@ -83,6 +83,12 @@ async function dbRpc(fn: string, args: unknown): Promise<void> {
     body: JSON.stringify(args),
   }).catch(() => {});
 }
+async function dbDelete(path: string): Promise<void> {
+  await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method: "DELETE",
+    headers: { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` },
+  }).catch(() => {});
+}
 function logMetric(provider: string, model: string, kind: string, success: boolean, latencyMs: number) {
   const pr = dbInsert("aisole_metrics", { provider, model, kind, success, latency_ms: latencyMs }).catch(() => {});
   try { (globalThis as any).EdgeRuntime?.waitUntil?.(pr); } catch (_e) { /* ignore */ }
@@ -240,6 +246,17 @@ async function handleRemember(body: any, headers: Record<string, string>): Promi
   return json({ ok: true, summary }, 200, headers);
 }
 
+// Delete a character's memory entirely (called when the user deletes it).
+async function handleForget(body: any, headers: Record<string, string>): Promise<Response> {
+  const clientId = String(body?.clientId ?? "");
+  const id = sanitizeIds([body?.id])[0];
+  if (!clientId || !id) return json({ ok: false }, 400, headers);
+  const c = encodeURIComponent(clientId);
+  await dbDelete(`aisole_minds?client_id=eq.${c}&char_id=eq.${encodeURIComponent(id)}`);
+  await dbDelete(`aisole_episodes?client_id=eq.${c}&slugs=cs.{${id}}`);
+  return json({ ok: true }, 200, headers);
+}
+
 // ---- dashboard ----
 async function handleStats(body: any, headers: Record<string, string>): Promise<Response> {
   let authed = false; let token: string | null = null;
@@ -279,6 +296,7 @@ Deno.serve(async (req: Request) => {
     const action = body?.action ?? "chat";
     if (action === "recall") return await handleRecall(body, headers);
     if (action === "remember") return await handleRemember(body, headers);
+    if (action === "forget") return await handleForget(body, headers);
     if (action === "stats") return await handleStats(body, headers);
     const messages: Msg[] = Array.isArray(body?.messages) ? body.messages : [];
     if (messages.length === 0) return json({ error: "no messages" }, 400, headers);

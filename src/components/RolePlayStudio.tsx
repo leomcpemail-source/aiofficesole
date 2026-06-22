@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import {
   ROSTER, colorForIndex, autoScene, genderForSlug,
-  getCustomCharacters, saveCustomCharacter, deleteCustomCharacter,
+  getCustomCharacters, saveCustomCharacter, deleteCustomCharacter, forgetCharacter,
   type RPCharacter, type RPSession, type CustomCharacter,
 } from '../roleplay'
 import { asset } from '../asset'
@@ -82,7 +82,12 @@ const RolePlayStudio: React.FC<Props> = ({ onStart, onClose }) => {
     setCName(''); setCPersona('')
   }
 
-  const removeCustom = (id: string) => setCustoms(deleteCustomCharacter(id))
+  const removeCustom = (id: string) => {
+    if (!confirm('ลบตัวละครนี้ พร้อมความจำ/อารมณ์/ความสัมพันธ์ทั้งหมด?')) return
+    forgetCharacter(`custom:${id}`) // purge server-side memory
+    setCustoms(deleteCustomCharacter(id))
+    setCast(prev => prev.filter(c => c._key !== `custom:${id}`))
+  }
 
   return (
     <div className="rp-overlay" role="dialog" aria-modal="true">
