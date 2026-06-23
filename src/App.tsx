@@ -80,6 +80,19 @@ const MAIN_ROOM = ROOMS['main-office']
 const AISOLE_HIDE_FURNITURE = new Set([
   'desk-1b', 'desk-1c', 'desk-2b', 'desk-2c', 'desk-3b', 'desk-3c',
 ])
+
+// AISole seats the cast in open floor (not behind desks) so they read as people
+// standing around talking — visible, with natural depth ordering (no floating).
+const AISOLE_STAND_SPOTS = [
+  { id: 'ais-0', type: 'desk' as const, x: 33, y: 71, spriteFacing: 'front-right' as const },
+  { id: 'ais-1', type: 'desk' as const, x: 45, y: 73, spriteFacing: 'front-left' as const },
+  { id: 'ais-2', type: 'desk' as const, x: 56, y: 71, spriteFacing: 'front-right' as const },
+  { id: 'ais-3', type: 'desk' as const, x: 64, y: 75, spriteFacing: 'front-left' as const },
+  { id: 'ais-4', type: 'desk' as const, x: 28, y: 64, spriteFacing: 'front-right' as const },
+  { id: 'ais-5', type: 'desk' as const, x: 40, y: 65, spriteFacing: 'front-left' as const },
+  { id: 'ais-6', type: 'desk' as const, x: 52, y: 63, spriteFacing: 'front-right' as const },
+  { id: 'ais-7', type: 'desk' as const, x: 62, y: 65, spriteFacing: 'front-left' as const },
+]
 const ENTRY = MAIN_ROOM.entryPoint           // door position (%)
 const COFFEE_SPOT = MAIN_ROOM.agentSpots.find(s => s.type === 'coffee') ?? null
 const WATER_SPOTS  = MAIN_ROOM.agentSpots.filter(s => s.type === 'water')
@@ -897,10 +910,9 @@ const App: React.FC = () => {
       assignCharacterToRole(c.roleKey, c.slug)
     })
 
-    // Spawn the cast at desks, walking in from the door.
-    const deskSpots = MAIN_ROOM.agentSpots.filter(s => s.type === 'desk')
+    // Spawn the cast in open standing spots, walking in from the door.
     const castAgents: Agent[] = next.cast.map((c, i) => {
-      const spot = deskSpots[i % deskSpots.length]
+      const spot = AISOLE_STAND_SPOTS[i % AISOLE_STAND_SPOTS.length]
       const base = createAgent({ id: c.roleKey, name: c.name, role: c.roleKey, task: c.persona, spot })
       return { ...base, pathQueue: computePath(base.position, base.targetPosition) }
     })
@@ -987,9 +999,10 @@ const App: React.FC = () => {
       setTypingAgents(prev => { const n = new Set(prev); n.delete(speaker.roleKey); return n })
 
       // Speech bubble over the character (talking state renders SpeechBubble).
+      const bubble = line.length > 52 ? line.slice(0, 52).trimEnd() + '…' : line
       setAgents(prev => prev.map(a =>
         a.id === speaker.roleKey
-          ? { ...a, state: 'talking-to-manager' as const, statusText: line.slice(0, 80) }
+          ? { ...a, state: 'talking-to-manager' as const, statusText: bubble }
           : a
       ))
       addMsg(speaker.name, speaker.roleKey, speaker.color, line)
@@ -2062,12 +2075,9 @@ const App: React.FC = () => {
             const spot = MAIN_ROOM.agentSpots.find(s => s.id === agent.assignedSpotId)
             const atDesk = Math.abs(agent.position.x - agent.deskPosition.x) < 1 &&
                            Math.abs(agent.position.y - agent.deskPosition.y) < 1
-            // AISole cast must stay fully visible (the show is watching them talk),
-            // so render them above all furniture instead of tucked behind desks.
-            const isRp = agent.role.startsWith('rp-')
-            const zOverride = isRp
-              ? 300 + Math.round(agent.position.y)
-              : atDesk && spot?.zIndex ? spot.zIndex : undefined
+            // AISole cast stand in open floor (spot not in agentSpots) -> natural
+            // depth ordering by Y, so they never float on top of desks.
+            const zOverride = atDesk && spot?.zIndex ? spot.zIndex : undefined
 
             const meta = agentMetaRef.current.get(agent.id)
             const idleDurationMs =
