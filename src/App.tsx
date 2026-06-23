@@ -80,19 +80,6 @@ const MAIN_ROOM = ROOMS['main-office']
 const AISOLE_HIDE_FURNITURE = new Set([
   'desk-1b', 'desk-1c', 'desk-2b', 'desk-2c', 'desk-3b', 'desk-3c',
 ])
-
-// AISole seats the cast in open floor (not behind desks) so they read as people
-// standing around talking — visible, with natural depth ordering (no floating).
-const AISOLE_STAND_SPOTS = [
-  { id: 'ais-0', type: 'desk' as const, x: 33, y: 71, spriteFacing: 'front-right' as const },
-  { id: 'ais-1', type: 'desk' as const, x: 45, y: 73, spriteFacing: 'front-left' as const },
-  { id: 'ais-2', type: 'desk' as const, x: 56, y: 71, spriteFacing: 'front-right' as const },
-  { id: 'ais-3', type: 'desk' as const, x: 64, y: 75, spriteFacing: 'front-left' as const },
-  { id: 'ais-4', type: 'desk' as const, x: 28, y: 64, spriteFacing: 'front-right' as const },
-  { id: 'ais-5', type: 'desk' as const, x: 40, y: 65, spriteFacing: 'front-left' as const },
-  { id: 'ais-6', type: 'desk' as const, x: 52, y: 63, spriteFacing: 'front-right' as const },
-  { id: 'ais-7', type: 'desk' as const, x: 62, y: 65, spriteFacing: 'front-left' as const },
-]
 const ENTRY = MAIN_ROOM.entryPoint           // door position (%)
 const COFFEE_SPOT = MAIN_ROOM.agentSpots.find(s => s.type === 'coffee') ?? null
 const WATER_SPOTS  = MAIN_ROOM.agentSpots.filter(s => s.type === 'water')
@@ -910,9 +897,10 @@ const App: React.FC = () => {
       assignCharacterToRole(c.roleKey, c.slug)
     })
 
-    // Spawn the cast in open standing spots, walking in from the door.
+    // Seat the cast at desks (natural Y-depth, desks may occlude them).
+    const deskSpots = MAIN_ROOM.agentSpots.filter(s => s.type === 'desk')
     const castAgents: Agent[] = next.cast.map((c, i) => {
-      const spot = AISOLE_STAND_SPOTS[i % AISOLE_STAND_SPOTS.length]
+      const spot = deskSpots[i % deskSpots.length]
       const base = createAgent({ id: c.roleKey, name: c.name, role: c.roleKey, task: c.persona, spot })
       return { ...base, pathQueue: computePath(base.position, base.targetPosition) }
     })
