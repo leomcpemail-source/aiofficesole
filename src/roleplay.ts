@@ -468,6 +468,24 @@ function localLine(speaker: RPCharacter, cast: RPCharacter[], ctx: TurnContext):
 }
 
 /**
+ * Strip a leading "[N] name:" / "N name:" / "name:" label that the model
+ * sometimes echoes from the transcript format (e.g. "5 บอย: ...").
+ */
+function stripSpeakerLabel(text: string, name: string): string {
+  let t = (text || '').trim()
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const nameRe = new RegExp('^\\s*@?' + esc + '\\s*[:：]\\s*', 'i')
+  for (let i = 0; i < 3; i++) {
+    const before = t
+    t = t.replace(/^\s*[[(]?\s*\d{1,3}\s*[\])\.]?\s*/, '') // leading turn number "[5]" / "5"
+    t = t.replace(nameRe, '')                              // leading own name + colon
+    t = t.replace(/^\s*[:：]\s*/, '')                       // leftover colon
+    if (t === before) break
+  }
+  return t.trim() || (text || '').trim()
+}
+
+/**
  * Produce the next line for `speaker`. Tries the remote brain first (if
  * configured), then falls back to the offline persona engine so the show
  * never stalls — matching AISole's "never let an error reach the user" rule.
@@ -486,10 +504,10 @@ export async function generateLine(
       })
       const data = await res.json()
       const txt = (data.text ?? data.reply ?? data.content ?? data.message ?? '').toString().trim()
-      if (txt) return clean(txt)
+      if (txt) return stripSpeakerLabel(clean(txt), speaker.name)
     } catch {
       /* fall through to local engine */
     }
   }
-  return localLine(speaker, cast, ctx)
+  return stripSpeakerLabel(localLine(speaker, cast, ctx), speaker.name)
 }
