@@ -23,7 +23,15 @@ const MAX_CAST = 8
 interface Pickable { key: string; name: string; slug: string; persona: string; custom?: CustomCharacter }
 
 const RolePlayStudio: React.FC<Props> = ({ onStart, onClose }) => {
-  const [screen, setScreen] = useState<Screen>('home')
+  // First visit shows the guide (AISole-style onboarding); afterwards the home menu.
+  const [seenGuide, setSeenGuide] = useState<boolean>(() => {
+    try { return !!localStorage.getItem('aisole_seen_guide') } catch { return true }
+  })
+  const markSeen = () => {
+    try { localStorage.setItem('aisole_seen_guide', '1') } catch { /* ignore */ }
+    setSeenGuide(true)
+  }
+  const [screen, setScreen] = useState<Screen>(seenGuide ? 'home' : 'guide')
   const [customs, setCustoms] = useState<CustomCharacter[]>(() => getCustomCharacters())
 
   // Wizard state
@@ -117,7 +125,7 @@ const RolePlayStudio: React.FC<Props> = ({ onStart, onClose }) => {
         {/* ---------- GUIDE ---------- */}
         {screen === 'guide' && (
           <div className="rp-body">
-            <h3 className="rp-h3">📖 คู่มือการใช้งาน</h3>
+            <h3 className="rp-h3">{seenGuide ? '📖 คู่มือการใช้งาน' : '👋 ยินดีต้อนรับสู่ AISole'}</h3>
             <ol className="rp-guide">
               <li><b>สร้างตัวละคร</b> (ไม่บังคับ) — ตั้งชื่อ เลือกหน้าตา และกำหนด “บทบาท” ที่อยากให้สวม เก็บไว้ในคลัง</li>
               <li><b>เริ่มวงสนทนา</b> — ใส่หัวข้อที่อยากให้คุย + ปูมหลัง (ถ้ามี) + ชื่อของคุณในวง</li>
@@ -126,8 +134,14 @@ const RolePlayStudio: React.FC<Props> = ({ onStart, onClose }) => {
               <li><b>พิมพ์แทรก</b>ได้ตลอดในช่องแชต — ตัวละครจะตอบสนองคุณ</li>
               <li><b>ความจำ</b> — ตัวละครจำวงก่อนๆ ที่เคยคุยกับชุดเดียวกันได้ คุยต่อเนื่องขึ้นเรื่อยๆ</li>
             </ol>
-            <p className="rp-home-hint">ฉากเช้า/กลางวัน/เย็น/กลางคืน ปรับตาม timezone ของคุณเอง ไม่ต้องเลือก</p>
-            <div className="rp-actions"><button className="rp-btn-ghost" onClick={() => setScreen('home')}>← กลับ</button></div>
+            <p className="rp-home-hint">ฉากเช้า/กลางวัน/เย็น/กลางคืน ปรับตาม timezone ของคุณเอง ไม่ต้องเลือก · กดปุ่ม 🔊 ด้านบนเพื่อเปิดเสียงพูด</p>
+            <div className="rp-actions">
+              {seenGuide ? (
+                <button className="rp-btn-ghost" onClick={() => setScreen('home')}>← กลับ</button>
+              ) : (
+                <button className="rp-btn-primary" onClick={() => { markSeen(); setScreen('home') }}>เริ่มใช้งาน →</button>
+              )}
+            </div>
           </div>
         )}
 
