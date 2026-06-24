@@ -347,8 +347,8 @@ const App: React.FC = () => {
   // Boss interaction cooldowns
   const interactionCooldowns = useRef<Map<string, number>>(new Map())
 
-  // Boss interaction effect (shown above boss character)
-  const [bossEffect, setBossEffect] = useState<string | null>(null)
+  // Interaction effect (sprite shown above the character that walked over)
+  const [interactEffect, setInteractEffect] = useState<{ agentId: string; src: string } | null>(null)
 
   const handleFurnitureClick = useCallback((itemId: string) => {
     const interaction = getInteraction(itemId)
@@ -358,52 +358,56 @@ const App: React.FC = () => {
     const now = Date.now()
     const lastUsed = interactionCooldowns.current.get(itemId) ?? 0
     if (now - lastUsed < interaction.cooldown) return
+
+    // Pick who walks over: in AISole, a RANDOM cast member; else the boss.
+    const target = interaction.walkTo
+    const candidates = agentsRef.current.filter(a =>
+      isAisoleMode ? a.role.startsWith('rp-') : a.id === BOSS_ID,
+    )
+    const ready = candidates.filter(a => a.state === 'working' || a.state === 'idle')
+    const pool = ready.length ? ready : candidates
+    const mover = pool[Math.floor(Math.random() * pool.length)]
+    if (!mover) return
+    const moverId = mover.id
     interactionCooldowns.current.set(itemId, now)
 
-    // Walk boss to the item
-    const target = interaction.walkTo
-    setAgents(prev => prev.map(a => {
-      if (a.id !== BOSS_ID) return a
-      return {
-        ...a,
-        state: 'walking-to-desk' as const,
-        targetPosition: target,
-        pathQueue: computePath(a.position, target),
-        statusText: Array.isArray(interaction.chatMessage)
-          ? interaction.chatMessage[Math.floor(Math.random() * interaction.chatMessage.length)]
-          : interaction.chatMessage,
-      }
-    }))
+    const pickMsg = () => Array.isArray(interaction.chatMessage)
+      ? interaction.chatMessage[Math.floor(Math.random() * interaction.chatMessage.length)]
+      : interaction.chatMessage
 
-    // Set up arrival watcher — when boss reaches target, trigger effects
+    // Walk the mover to the item
+    setAgents(prev => prev.map(a => a.id === moverId ? {
+      ...a,
+      state: 'walking-to-desk' as const,
+      targetPosition: target,
+      pathQueue: computePath(a.position, target),
+      statusText: pickMsg(),
+    } : a))
+
+    // Arrival watcher — trigger effects when the mover reaches the item
     const checkArrival = setInterval(() => {
-      const boss = agentsRef.current.find(a => a.id === BOSS_ID)
-      if (!boss) { clearInterval(checkArrival); return }
-      const dist = Math.sqrt((boss.position.x - target.x) ** 2 + (boss.position.y - target.y) ** 2)
-      if (dist < 2) {
+      const m = agentsRef.current.find(a => a.id === moverId)
+      if (!m) { clearInterval(checkArrival); return }
+      const dist = Math.sqrt((m.position.x - target.x) ** 2 + (m.position.y - target.y) ** 2)
+      if (dist < 2.5) {
         clearInterval(checkArrival)
 
-        // Play sound if specified
         if (interaction.sound === 'bell') sfx.playBell()
         else if (interaction.sound === 'notification') sfx.playNotification()
         else if (interaction.sound === 'coffee') sfx.playCoffee()
 
-        // Show effect above boss
-        setBossEffect(interaction.effect)
-        setTimeout(() => setBossEffect(null), interaction.duration)
+        // Effect sprite above the mover
+        setInteractEffect({ agentId: moverId, src: interaction.effect })
+        setTimeout(() => setInteractEffect(null), interaction.duration)
 
-        // Post chat message
-        const msg = Array.isArray(interaction.chatMessage)
-          ? interaction.chatMessage[Math.floor(Math.random() * interaction.chatMessage.length)]
-          : interaction.chatMessage
-        const bossCfg = AGENT_CONFIGS[BOSS_ROLE] ?? AGENT_CONFIGS['default']
-        // Use setMessages directly to avoid addMsg dependency ordering
+        // Chat message attributed to the mover
+        const cfg = AGENT_CONFIGS[m.role] ?? AGENT_CONFIGS['default']
         setMessages(prev => [...prev.slice(-50), {
           id: makeMsgId(),
-          sender: bossCfg.title,
-          senderSprite: BOSS_ROLE,
-          senderColor: bossCfg.color,
-          text: msg,
+          sender: m.name,
+          senderSprite: m.role,
+          senderColor: cfg.color,
+          text: pickMsg(),
           channel: 'office-general',
           timestamp: timeNow(),
         }])
@@ -414,32 +418,24 @@ const App: React.FC = () => {
           setFurnitureStates(prev => ({ ...prev, [fs.id]: fs.state }))
           if (fs.revertAfter) {
             setTimeout(() => {
-              setFurnitureStates(prev => {
-                const next = { ...prev }
-                delete next[fs.id]
-                return next
-              })
+              setFurnitureStates(prev => { const next = { ...prev }; delete next[fs.id]; return next })
             }, fs.revertAfter)
           }
         }
 
-        // Walk boss back to desk after effect
+        // Walk the mover back to its spot after the effect
         setTimeout(() => {
-          setAgents(prev => prev.map(a => {
-            if (a.id !== BOSS_ID) return a
-            return {
-              ...a,
-              state: 'walking-to-desk' as const,
-              targetPosition: { ...a.deskPosition },
-              pathQueue: computePath(a.position, a.deskPosition),
-              statusText: 'back to work',
-            }
-          }))
+          setAgents(prev => prev.map(a => a.id === moverId ? {
+            ...a,
+            state: 'walking-to-desk' as const,
+            targetPosition: { ...a.deskPosition },
+            pathQueue: computePath(a.position, a.deskPosition),
+            statusText: 'กลับที่',
+          } : a))
         }, interaction.duration + 500)
       }
     }, 200)
 
-    // Safety: clear after 15s if boss never arrives
     setTimeout(() => clearInterval(checkArrival), 15000)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -2112,24 +2108,24 @@ const App: React.FC = () => {
             )
           })()}
 
-          {/* Boss interaction effect */}
-          {bossEffect && (() => {
-            const boss = agents.find(a => a.id === BOSS_ID)
-            if (!boss) return null
+          {/* Interaction effect — above whoever walked over to the item */}
+          {interactEffect && (() => {
+            const m = agents.find(a => a.id === interactEffect.agentId)
+            if (!m) return null
             return (
               <div
                 className="boss-interaction-effect"
                 style={{
                   position: 'absolute',
-                  left: `${boss.position.x}%`,
-                  top: `${boss.position.y - 8}%`,
+                  left: `${m.position.x}%`,
+                  top: `${m.position.y - 8}%`,
                   transform: 'translate(-50%, -100%)',
                   zIndex: 999,
                   pointerEvents: 'none',
                 }}
               >
                 <img
-                  src={asset(bossEffect)}
+                  src={asset(interactEffect.src)}
                   alt="interaction"
                   style={{ height: 32, width: 'auto', imageRendering: 'pixelated' }}
                 />
