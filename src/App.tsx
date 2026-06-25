@@ -2156,7 +2156,9 @@ const App: React.FC = () => {
           // to the director so the cast reacts to it on the next turn.
           if (rpSessionRef.current.active) {
             const who = rpSessionRef.current.humanName || 'ผู้ชม'
-            addMsg(who, 'default', '#ffd166', text)
+            // Use an rp- sprite key so SlackChat shows the audience name verbatim
+            // instead of re-theming it to an English Office character name.
+            addMsg(who, 'rp-audience', '#ffd166', text)
             pushHuman(text)
             return
           }
