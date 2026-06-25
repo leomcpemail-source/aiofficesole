@@ -408,6 +408,11 @@ function buildBrainBody(speaker: RPCharacter, cast: RPCharacter[], ctx: TurnCont
   const phase = ctx.turn < 8
     ? 'ช่วงนี้เกาะหัวข้อหลักไว้'
     : ctx.turn < 20 ? 'ช่วงนี้แตกประเด็นที่เกี่ยวข้องได้' : 'ช่วงนี้ต่อยอดได้อิสระ แต่ให้ต่อจากบทสนทนา'
+  const humanLine = ctx.humanPending
+    ? `\n[สำคัญที่สุดของเทิร์นนี้] ${ctx.humanName || 'ผู้ชม'} (คนดูที่นั่งอยู่ในวง) เพิ่งพูดแทรกว่า "${ctx.humanPending}" — ` +
+      `ให้คุณ "ตอบสนองต่อคำพูดนี้โดยตรง" ในเทิร์นนี้ (ตอบคำถาม / เห็นด้วยหรือแย้ง / รับมุก / หรือปรับทิศเรื่องตามที่เขาชวน) ` +
+      `เอ่ยถึงเขาด้วย @${ctx.humanName || 'ผู้ชม'} ถ้าเหมาะ ห้ามทำเป็นไม่ได้ยินหรือพูดเรื่องอื่นลอยๆ`
+    : ''
   const system =
     `คุณกำลังสวมบทเป็น "${speaker.name}" บทบาท: ${speaker.persona || 'เป็นตัวของตัวเอง'}\n` +
     genderLine +
@@ -420,7 +425,8 @@ function buildBrainBody(speaker: RPCharacter, cast: RPCharacter[], ctx: TurnCont
     `ถ้าพาดพิงใครให้ใช้ @ชื่อเต็มตรงตามรายชื่อ ${phase} ` +
     `ใช้ภาษาไทยระดับมืออาชีพ เรียบเรียงประโยคให้ต่อเนื่องและอ่านลื่นเหมือนผู้เชี่ยวชาญชาวไทย ` +
     `หลีกเลี่ยงรูปประโยคที่มีกลิ่นอายการแปลจากภาษาอังกฤษ รักษาความสละสลวยและความถูกต้องของภาษาไทย ` +
-    `ตอบเฉพาะบทพูด ไม่ต้องมีชื่อนำหน้าหรือเครื่องหมายคำพูด`
+    `ตอบเฉพาะบทพูด ไม่ต้องมีชื่อนำหน้าหรือเครื่องหมายคำพูด` +
+    humanLine
   const history = ctx.history.map((h, i) => ({ role: 'user' as const, content: `[${i + 1}] ${h.name}: ${h.text}` }))
   if (ctx.humanPending) {
     history.push({ role: 'user' as const, content: `[ผู้ชม] ${ctx.humanName || 'ผู้ชม'}: ${ctx.humanPending}` })
