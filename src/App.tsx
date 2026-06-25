@@ -31,7 +31,7 @@ import { BOSS_ROLE, BOSS_NAME } from './config'
 import { asset } from './asset'
 import { speak, isTtsEnabled, setTtsEnabled, ttsSupported } from './tts'
 import { pickEvent } from './events'
-import { getInteraction } from './interactions'
+import { getInteraction, thaiInteractionMessage, thaiBreakMessage } from './interactions'
 import {
   useTheme, getRoomImage, getAngelaCat, getTheme,
   OFFICE_SIM_TOOL_MESSAGES, OFFICE_SIM_BOSS_PROMPTS,
@@ -371,9 +371,11 @@ const App: React.FC = () => {
     const moverId = mover.id
     interactionCooldowns.current.set(itemId, now)
 
-    const pickMsg = () => Array.isArray(interaction.chatMessage)
-      ? interaction.chatMessage[Math.floor(Math.random() * interaction.chatMessage.length)]
-      : interaction.chatMessage
+    const pickMsg = () => isAisoleMode
+      ? thaiInteractionMessage(itemId)
+      : Array.isArray(interaction.chatMessage)
+        ? interaction.chatMessage[Math.floor(Math.random() * interaction.chatMessage.length)]
+        : interaction.chatMessage
 
     // Walk the mover to the item
     setAgents(prev => prev.map(a => a.id === moverId ? {
@@ -1689,7 +1691,9 @@ const App: React.FC = () => {
 
               const cfg = AGENT_CONFIGS[updated.role] ?? AGENT_CONFIGS['default']
               const isBoss = updated.id === BOSS_ID
-              const breakMsg = useWater ? waterMessage() : (isBoss ? 'grabbing a Red Bull' : coffeeMessage())
+              const breakMsg = isAisoleMode
+                ? thaiBreakMessage(useWater ? 'water' : 'coffee')
+                : (useWater ? waterMessage() : (isBoss ? 'grabbing a Red Bull' : coffeeMessage()))
               const breakIcon = isBoss ? '🥫' : (useWater ? '💧' : '☕')
               addMsg(updated.name, updated.role, cfg.color, `${breakIcon} ${breakMsg}`)
               if (!sfx.isMuted()) sfx.playCoffee()

@@ -104,3 +104,48 @@ export function getInteraction(furnitureId: string): Interaction | null {
       return null
   }
 }
+
+// ---------------------------------------------------------------------------
+// AISole (Thai) flavor — used instead of the English Office lines when the app
+// runs in AISole mode, so no foreign names (Kevin, etc.) leak into the chat.
+// ---------------------------------------------------------------------------
+
+const TH_INTERACTION: Record<string, string[]> = {
+  plant: ['รดน้ำต้นไม้หน่อย', 'ดูแลต้นไม้ในออฟฟิศนิดนึง', 'ใบเขียวสดดีนะต้นนี้', 'เดี๋ยวรดน้ำให้นะ'],
+  coffee: ['ชงกาแฟสดสักแก้ว', 'ได้เวลากาแฟแล้ว!', 'เติมพลังก่อน', 'ใครอยากได้กาแฟบ้าง'],
+  filing: ['ขอเปิดดูแฟ้มเอกสารหน่อย', 'เอกสารอยู่ไหนนะ...', 'ค้นแฟ้มหารายงานแป๊บ', 'หาเอกสารสักครู่'],
+  printer: ['ขอปริ้นงานหน่อย', 'อย่าเพิ่งกระดาษติดนะ...', 'เครื่องปริ้นคู่ใจ', 'ปริ้นเอกสารแป๊บนึง'],
+  board: ['อัปเดตบอร์ดงานหน่อย', 'ย้ายงานไปช่องเสร็จแล้ว', 'แปะโน้ตเพิ่มนิดนึง', 'มาวางแผนงานกัน'],
+  fire: ['เช็คถังดับเพลิงหน่อย', 'ความปลอดภัยต้องมาก่อน', 'ยังไม่หมดอายุ ดีเลย', 'หวังว่าจะไม่ได้ใช้นะ'],
+  water: ['เติมน้ำใส่ขวดหน่อย', 'เช็คน้ำดื่มแป๊บ', 'พักดื่มน้ำสักหน่อย', 'เติมความชุ่มชื้นให้ร่างกาย'],
+  bell: ['ตี๊งๆ ได้เวลาประชุมยืน!', 'สั่นกระดิ่งเรียกทุกคน', 'ทุกคนมารวมตัวหน่อย!', 'ขอความสนใจหน่อยครับ'],
+  ship: ['ปล่อยของเลย!', 'ฮึดขึ้นมาเลย', 'โปสเตอร์นี้ปลุกใจทุกที', 'ลุยกันเลย'],
+  tv: ['เช็คแดชบอร์ดหน่อย', 'ระบบเขียวหมด เรียบร้อย', 'ดูตัวเลขสถานะแป๊บ', 'อัปไทม์ดูนิ่งดี'],
+}
+
+function categoryFor(itemId: string): keyof typeof TH_INTERACTION {
+  if (itemId.startsWith('plant')) return 'plant'
+  if (itemId === 'coffee') return 'coffee'
+  if (itemId.startsWith('filing')) return 'filing'
+  if (itemId.startsWith('printer')) return 'printer'
+  if (itemId === 'whiteboard' || itemId === 'kanban-board') return 'board'
+  if (itemId === 'fire-extinguisher') return 'fire'
+  if (itemId === 'water-cooler') return 'water'
+  if (itemId === 'bell') return 'bell'
+  if (itemId === 'ship-it-poster') return 'ship'
+  if (itemId === 'tv-monitor') return 'tv'
+  return 'board'
+}
+
+/** Thai chat line for a furniture interaction (AISole mode). */
+export function thaiInteractionMessage(itemId: string): string {
+  return pick(TH_INTERACTION[categoryFor(itemId)])
+}
+
+const TH_COFFEE_BREAK = ['ขอพักจิบกาแฟแป๊บ', 'เบรกกาแฟก่อน เดี๋ยวมาต่อ', 'ใครเอากาแฟไหม เดี๋ยวชงให้', 'พักสมองนิดนึง ไปหากาแฟก่อน']
+const TH_WATER_BREAK = ['ขอเติมน้ำหน่อย คอแห้ง', 'ไปกดน้ำดื่มแป๊บ', 'พักดื่มน้ำสักหน่อย', 'เติมน้ำให้ร่างกายหน่อย']
+
+/** Thai break line (AISole mode). */
+export function thaiBreakMessage(kind: 'coffee' | 'water'): string {
+  return pick(kind === 'water' ? TH_WATER_BREAK : TH_COFFEE_BREAK)
+}
