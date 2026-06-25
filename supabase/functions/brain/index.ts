@@ -4,7 +4,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 //   POST {messages}                                   -> chat
 //   POST {action:"recall",   clientId, slugs}         -> episodes + minds
 //   POST {action:"remember", clientId, slugs, cast, topic, transcript} -> store + reflect
-//   POST {action:"stats",    code|token, days}        -> dashboard (TOTP / session token)
+//   POST {action:"session",  clientId, sessionId, topic, castNames, country, tz, hour} -> log a watch-party
+//   POST {action:"stats", code|token, view, days|since|until} -> dashboard (TOTP / session token)
 // Keys + admin TOTP secret live in Supabase Vault. verify_jwt = false; guarded by
 // an exact-origin allowlist (blocks forks) + per-IP rate limit.
 
@@ -89,8 +90,11 @@ async function dbDelete(path: string): Promise<void> {
     headers: { apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` },
   }).catch(() => {});
 }
-function logMetric(provider: string, model: string, kind: string, success: boolean, latencyMs: number) {
-  const pr = dbInsert("aisole_metrics", { provider, model, kind, success, latency_ms: latencyMs }).catch(() => {});
+function logMetric(provider: string, model: string, kind: string, success: boolean, latencyMs: number, meta?: { sessionId?: string; clientId?: string }) {
+  const pr = dbInsert("aisole_metrics", {
+    provider, model, kind, success, latency_ms: latencyMs,
+    session_id: meta?.sessionId ?? null, client_id: meta?.clientId ?? null,
+  }).catch(() => {});
   try { (globalThis as any).EdgeRuntime?.waitUntil?.(pr); } catch (_e) { /* ignore */ }
 }
 
@@ -155,7 +159,7 @@ async function callProvider(p: Provider, key: string, messages: Msg[], maxTokens
   if (!text) throw new Error(`${p.name}: empty response`);
   return text;
 }
-async function generate(messages: Msg[], kind = "chat", maxTokens = 380): Promise<{ text: string; provider: string; model: string }> {
+async function generate(messages: Msg[], kind = "chat", maxTokens = 380, meta?: { sessionId?: string; clientId?: string }): Promise<{ text: string; provider: string; model: string }> {
   const errors: string[] = [];
   for (const p of PROVIDERS) {
     const key = await getSecret(p.secret);
@@ -163,9 +167,9 @@ async function generate(messages: Msg[], kind = "chat", maxTokens = 380): Promis
     const t0 = Date.now();
     try {
       const text = await callProvider(p, key, messages, maxTokens);
-      logMetric(p.name, p.model, kind, true, Date.now() - t0);
+      logMetric(p.name, p.model, kind, true, Date.now() - t0, meta);
       return { text, provider: p.name, model: p.model };
-    } catch (e) { logMetric(p.name, p.model, kind, false, Date.now() - t0); errors.push(String((e as Error)?.message ?? e)); }
+    } catch (e) { logMetric(p.name, p.model, kind, false, Date.now() - t0, meta); errors.push(String((e as Error)?.message ?? e)); }
   }
   throw new Error(`all providers failed: ${errors.join(" | ")}`);
 }
@@ -257,7 +261,51 @@ async function handleForget(body: any, headers: Record<string, string>): Promise
   return json({ ok: true }, 200, headers);
 }
 
+// ---- session logging (one watch-party the visitor starts) ----
+function clampInt(v: unknown, lo: number, hi: number, dflt: number): number {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt;
+}
+async function handleSession(body: any, headers: Record<string, string>): Promise<Response> {
+  const id = sanitizeIds([body?.sessionId])[0];
+  const clientId = String(body?.clientId ?? "").slice(0, 80);
+  if (!id || !clientId) return json({ ok: false, error: "bad session" }, 400, headers);
+  const country = /^[A-Za-z]{2}$/.test(String(body?.country ?? "")) ? String(body.country).toUpperCase() : "";
+  const names = Array.isArray(body?.castNames)
+    ? body.castNames.map((s: any) => String(s).slice(0, 40)).slice(0, 8) : [];
+  const row = {
+    id, client_id: clientId,
+    topic: String(body?.topic ?? "").slice(0, 200),
+    cast_count: clampInt(body?.castCount, 0, 20, names.length),
+    cast_names: names,
+    country, tz: String(body?.tz ?? "").slice(0, 60),
+    local_hour: clampInt(body?.hour, 0, 23, 0),
+  };
+  try { await dbInsert("aisole_sessions", row); } catch (_e) { /* best-effort */ }
+  return json({ ok: true }, 200, headers);
+}
+
 // ---- dashboard ----
+function rangeBounds(body: any): { since: string; until: string } {
+  // Custom explicit range wins; otherwise a rolling window of N days (0 = all).
+  const until = body?.until ? new Date(String(body.until)) : new Date();
+  let since: Date;
+  if (body?.since) {
+    since = new Date(String(body.since));
+  } else {
+    const days = Number(body?.days ?? 7);
+    since = days > 0 ? new Date(Date.now() - days * 86400000) : new Date("1970-01-01T00:00:00Z");
+  }
+  return { since: since.toISOString(), until: until.toISOString() };
+}
+async function rpc(fn: string, args: unknown): Promise<any> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` },
+    body: JSON.stringify(args),
+  });
+  return res.json();
+}
 async function handleStats(body: any, headers: Record<string, string>): Promise<Response> {
   let authed = false; let token: string | null = null;
   if (body?.token && await verifyToken(String(body.token))) { authed = true; token = String(body.token); }
@@ -267,18 +315,18 @@ async function handleStats(body: any, headers: Record<string, string>): Promise<
   }
   if (!authed) return json({ error: "unauthorized" }, 401, headers);
 
-  const days = Number(body?.days ?? 7);
-  const since = days > 0 ? new Date(Date.now() - days * 86400000).toISOString() : "1970-01-01T00:00:00Z";
+  const { since, until } = rangeBounds(body);
+  const view = String(body?.view ?? "overview");
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/aisole_stats`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: SERVICE_ROLE, Authorization: `Bearer ${SERVICE_ROLE}` },
-      body: JSON.stringify({ p_since: since }),
-    });
-    const data = await res.json();
-    return json({ ...data, token }, 200, headers);
+    if (view === "sessions") {
+      const limit = clampInt(body?.limit, 1, 500, 200);
+      const data = await rpc("aisole_sessions_list", { p_since: since, p_until: until, p_limit: limit });
+      return json({ sessions: Array.isArray(data) ? data : [], token }, 200, headers);
+    }
+    const data = await rpc("aisole_overview", { p_since: since, p_until: until });
+    return json({ ...(data ?? {}), token }, 200, headers);
   } catch (e) {
-    return json({ error: String((e as Error)?.message ?? e) }, 200, headers);
+    return json({ error: String((e as Error)?.message ?? e), token }, 200, headers);
   }
 }
 
@@ -297,10 +345,15 @@ Deno.serve(async (req: Request) => {
     if (action === "recall") return await handleRecall(body, headers);
     if (action === "remember") return await handleRemember(body, headers);
     if (action === "forget") return await handleForget(body, headers);
+    if (action === "session") return await handleSession(body, headers);
     if (action === "stats") return await handleStats(body, headers);
     const messages: Msg[] = Array.isArray(body?.messages) ? body.messages : [];
     if (messages.length === 0) return json({ error: "no messages" }, 400, headers);
-    return json(await generate(messages, "chat"), 200, headers);
+    const meta = {
+      sessionId: sanitizeIds([body?.sessionId])[0] || undefined,
+      clientId: body?.clientId ? String(body.clientId).slice(0, 80) : undefined,
+    };
+    return json(await generate(messages, "chat", 380, meta), 200, headers);
   } catch (e) {
     return json({ error: String((e as Error)?.message ?? e) }, 502, headers);
   }
