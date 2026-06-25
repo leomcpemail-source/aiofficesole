@@ -60,11 +60,18 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  // Build the range from the viewer's LOCAL calendar day, so "today" means the
+  // current day where the viewer is (not a rolling 24h window in UTC).
   const range = useCallback((): StatsRange => {
     if (customOn && from && to) {
       return { since: new Date(from + 'T00:00:00').toISOString(), until: new Date(to + 'T23:59:59').toISOString() }
     }
-    return { days }
+    const until = new Date().toISOString()
+    if (days <= 0) return { since: '1970-01-01T00:00:00.000Z', until } // all time
+    const start = new Date()
+    start.setHours(0, 0, 0, 0)              // local midnight today
+    start.setDate(start.getDate() - (days - 1)) // include today + (days-1) prior local days
+    return { since: start.toISOString(), until }
   }, [customOn, from, to, days])
 
   const handleAuthResult = (data: any): boolean => {

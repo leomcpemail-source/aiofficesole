@@ -317,13 +317,17 @@ async function handleStats(body: any, headers: Record<string, string>): Promise<
 
   const { since, until } = rangeBounds(body);
   const view = String(body?.view ?? "overview");
+  // Viewer timezone for bucketing the daily chart (defaults to UTC). Only a
+  // well-formed IANA name is accepted, so it can't break the date_trunc.
+  const tzRaw = String(body?.tz ?? "");
+  const tz = /^[A-Za-z]+\/[A-Za-z0-9_+-]+$/.test(tzRaw) || tzRaw === "UTC" ? tzRaw : "UTC";
   try {
     if (view === "sessions") {
       const limit = clampInt(body?.limit, 1, 500, 200);
       const data = await rpc("aisole_sessions_list", { p_since: since, p_until: until, p_limit: limit });
       return json({ sessions: Array.isArray(data) ? data : [], token }, 200, headers);
     }
-    const data = await rpc("aisole_overview", { p_since: since, p_until: until });
+    const data = await rpc("aisole_overview", { p_since: since, p_until: until, p_tz: tz });
     return json({ ...(data ?? {}), token }, 200, headers);
   } catch (e) {
     return json({ error: String((e as Error)?.message ?? e), token }, 200, headers);

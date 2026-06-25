@@ -367,11 +367,17 @@ export function mindsByCharacter(minds: MindRow[], castIds: string[]): Record<st
 export interface StatsAuth { code?: string; token?: string }
 export interface StatsRange { days?: number; since?: string; until?: string }
 
+// The dashboard viewer's IANA timezone — used to bucket days on the viewer's
+// local calendar (so "today" means today where they are, not in UTC).
+function viewerTz(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' } catch { return 'UTC' }
+}
+
 async function postStats(auth: StatsAuth, view: string, range: StatsRange, extra: Record<string, unknown> = {}): Promise<any> {
   const res = await fetch(BRAIN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'stats', view, ...auth, ...range, ...extra }),
+    body: JSON.stringify({ action: 'stats', view, tz: viewerTz(), ...auth, ...range, ...extra }),
   })
   return res.json()
 }
