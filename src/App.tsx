@@ -40,6 +40,7 @@ import {
 import {
   useRPSession, startSession, stopSession, generateLine, pushHuman, consumeHuman,
   recallMemories, rememberEpisode, memoriesByCharacter, mindsByCharacter, autoScene, scenePhase,
+  startSessionLog,
   type RPSession, type RPCharacter, type MindRow,
 } from './roleplay'
 
@@ -930,6 +931,8 @@ const App: React.FC = () => {
     })
 
     startSession(next)
+    // Log this watch-party for the analytics dashboard (who/what/when/where).
+    startSessionLog({ topic: next.topic, castNames: next.cast.map(c => c.name) })
     setRpStudioOpen(false)
     addMsg('system', 'default', '#b14aed', `🎬 ${next.topic}`, true)
   }, [addMsg])

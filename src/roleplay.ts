@@ -242,6 +242,52 @@ export function getClientId(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Analytics — log each watch-party so the dashboard can show who/what/when
+// ---------------------------------------------------------------------------
+
+// Current session id; threaded into chat calls so each LLM call is attributed
+// to the session the dashboard drills into.
+let activeSessionId: string | null = null
+export function getActiveSessionId(): string | null { return activeSessionId }
+
+// Rough country code from the browser locale (region subtag), then timezone.
+const TZ_COUNTRY: Record<string, string> = {
+  'Asia/Bangkok': 'TH', 'Asia/Vientiane': 'LA', 'Asia/Phnom_Penh': 'KH',
+  'Asia/Yangon': 'MM', 'Asia/Ho_Chi_Minh': 'VN', 'Asia/Singapore': 'SG',
+  'Asia/Kuala_Lumpur': 'MY', 'Asia/Jakarta': 'ID', 'Asia/Manila': 'PH',
+  'Asia/Tokyo': 'JP', 'Asia/Seoul': 'KR', 'Asia/Shanghai': 'CN',
+  'Asia/Hong_Kong': 'HK', 'Asia/Taipei': 'TW', 'Asia/Kolkata': 'IN',
+  'Australia/Sydney': 'AU', 'Europe/London': 'GB', 'America/New_York': 'US',
+  'America/Los_Angeles': 'US',
+}
+function localTimeZone(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || '' } catch { return '' }
+}
+function localeCountry(): string {
+  try {
+    const lang = (navigator.languages?.[0] || navigator.language || '')
+    const m = lang.match(/[-_]([A-Za-z]{2})\b/)
+    if (m) return m[1].toUpperCase()
+  } catch { /* ignore */ }
+  return TZ_COUNTRY[localTimeZone()] || ''
+}
+
+/** Start a new analytics session and report it to the brain (best-effort). */
+export function startSessionLog(opts: { topic: string; castNames: string[] }): void {
+  const id = 's-' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+  activeSessionId = id
+  const payload = {
+    action: 'session', clientId: getClientId(), sessionId: id,
+    topic: opts.topic, castCount: opts.castNames.length, castNames: opts.castNames.slice(0, 8),
+    country: localeCountry(), tz: localTimeZone(), hour: new Date().getHours(),
+  }
+  fetch(BRAIN_URL, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => { /* best-effort */ })
+}
+
+// ---------------------------------------------------------------------------
 // Director — picks who speaks and what they say
 // ---------------------------------------------------------------------------
 
@@ -316,14 +362,28 @@ export function mindsByCharacter(minds: MindRow[], castIds: string[]): Record<st
   return map
 }
 
-/** Dashboard stats from the brain. Auth via a TOTP code or a session token. */
-export async function fetchStats(auth: { code?: string; token?: string }, days: number): Promise<any> {
+/** Auth + time range for the dashboard. Either a rolling window (days) or an
+ *  explicit custom range (since/until as ISO strings). */
+export interface StatsAuth { code?: string; token?: string }
+export interface StatsRange { days?: number; since?: string; until?: string }
+
+async function postStats(auth: StatsAuth, view: string, range: StatsRange, extra: Record<string, unknown> = {}): Promise<any> {
   const res = await fetch(BRAIN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'stats', ...auth, days }),
+    body: JSON.stringify({ action: 'stats', view, ...auth, ...range, ...extra }),
   })
   return res.json()
+}
+
+/** Aggregated overview (visitors, sessions, providers, by day/hour/country, topics). */
+export function fetchOverview(auth: StatsAuth, range: StatsRange): Promise<any> {
+  return postStats(auth, 'overview', range)
+}
+
+/** Per-session list with provider success/fail rollup for drill-down. */
+export function fetchSessions(auth: StatsAuth, range: StatsRange, limit = 200): Promise<any> {
+  return postStats(auth, 'sessions', range, { limit })
 }
 
 /**
@@ -431,7 +491,10 @@ function buildBrainBody(speaker: RPCharacter, cast: RPCharacter[], ctx: TurnCont
   if (ctx.humanPending) {
     history.push({ role: 'user' as const, content: `[ผู้ชม] ${ctx.humanName || 'ผู้ชม'}: ${ctx.humanPending}` })
   }
-  return { messages: [{ role: 'system', content: system }, ...history] }
+  return {
+    messages: [{ role: 'system', content: system }, ...history],
+    sessionId: activeSessionId, clientId: getClientId(),
+  }
 }
 
 /** Local, offline persona line generator. */
