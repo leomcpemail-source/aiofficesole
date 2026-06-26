@@ -266,11 +266,15 @@ function clampInt(v: unknown, lo: number, hi: number, dflt: number): number {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt;
 }
-async function handleSession(body: any, headers: Record<string, string>): Promise<Response> {
+async function handleSession(body: any, headers: Record<string, string>, ipCountry?: string | null): Promise<Response> {
   const id = sanitizeIds([body?.sessionId])[0];
   const clientId = String(body?.clientId ?? "").slice(0, 80);
   if (!id || !clientId) return json({ ok: false, error: "bad session" }, 400, headers);
-  const country = /^[A-Za-z]{2}$/.test(String(body?.country ?? "")) ? String(body.country).toUpperCase() : "";
+  // Prefer the real country from the visitor's IP (Cloudflare cf-ipcountry);
+  // fall back to the locale-derived code the client sent. "XX"/"T1" = unknown/Tor.
+  const ipc = String(ipCountry ?? "").toUpperCase();
+  const localeCc = /^[A-Za-z]{2}$/.test(String(body?.country ?? "")) ? String(body.country).toUpperCase() : "";
+  const country = (/^[A-Z]{2}$/.test(ipc) && ipc !== "XX" && ipc !== "T1") ? ipc : localeCc;
   const names = Array.isArray(body?.castNames)
     ? body.castNames.map((s: any) => String(s).slice(0, 40)).slice(0, 8) : [];
   const row = {
@@ -349,7 +353,7 @@ Deno.serve(async (req: Request) => {
     if (action === "recall") return await handleRecall(body, headers);
     if (action === "remember") return await handleRemember(body, headers);
     if (action === "forget") return await handleForget(body, headers);
-    if (action === "session") return await handleSession(body, headers);
+    if (action === "session") return await handleSession(body, headers, req.headers.get("cf-ipcountry"));
     if (action === "stats") return await handleStats(body, headers);
     const messages: Msg[] = Array.isArray(body?.messages) ? body.messages : [];
     if (messages.length === 0) return json({ error: "no messages" }, 400, headers);
